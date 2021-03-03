@@ -39,15 +39,11 @@ DATA_PATH = Path('data/dataset/train')
 def main(cfg: DictConfig) -> pl.Trainer:
     print(cfg)
     logger.info(f"PATH: {Path.cwd()}")
-
     logger.info(f"Training with the following config:\n{OmegaConf.to_yaml(cfg)}")
-
-    #deadtrees = DeadtreesDataModule() 
-    #deadtrees.setup(data_dir=DATA_PATH)
 
     network = instantiate(cfg.network, cfg.train)
     data = instantiate(cfg.data)
-    data.setup(reduce=5000, )
+    data.setup(data_dir=DATA_PATH, reduce=5000, )
 
     trainer_logger = instantiate(cfg.logger) if "logger" in cfg else True
     trainer = pl.Trainer(
@@ -55,7 +51,7 @@ def main(cfg: DictConfig) -> pl.Trainer:
         logger=trainer_logger,
         gpus=1, 
         precision=16, 
-        auto_lr_find=True, 
+        #auto_lr_find=True, 
         max_epochs=30,
         checkpoint_callback=checkpoint_callback,
         )
