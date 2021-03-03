@@ -1,7 +1,7 @@
 import os
 from functools import partial
 from pathlib import Path
-from typing import List, TypeVar, Union
+from typing import Iterable, List, TypeVar, Union
 
 import geopandas as gpd
 import numpy as np
@@ -12,10 +12,6 @@ from PIL import Image
 from shapely.geometry import Polygon
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
-
-# Type aliases
-GeoDataFrame = TypeVar("GeoDataFrame")
-
 
 # CONSTANTS
 WORKERS = 8
@@ -79,13 +75,13 @@ def _split_tile(tile_name: Path, tile_mask_name: Path) -> List[float]:
     return ratios
 
 
-def split_tiles(tiles, tile_masks, workers: int = WORKERS) -> List[float]:
+def split_tiles(tiles, tile_masks, workers: int = WORKERS) -> List[List[float]]:
     """Split tile into subtiles in parallel and save them to disc"""
 
     return process_map(_split_tile, tiles, tile_masks, max_workers=workers, chunksize=1)
 
 
-def create_tile_grid_gdf(path: Union[Path, str], crs: str) -> GeoDataFrame:
+def create_tile_grid_gdf(path: Union[Path, str], crs: str) -> gpd.GeoDataFrame:
     """Convert gdal_tile split info file into geopandas dataframe"""
 
     tiles_df = pd.read_csv(path, sep=";", header=None)
@@ -100,15 +96,16 @@ def _identify_empty(tile: Union[Path, str]) -> bool:
     """Helper func for exclude_nodata_tiles"""
 
     with xr.open_rasterio(tile).sel(band=1) as t:
-        status = 1 if t.max().values - t.min().values > 0 else 0
+        status = True if t.max().values - t.min().values > 0 else False
     return status
 
 
 def exclude_nodata_tiles(
-    path: Union[Path, str], tiles_df: GeoDataFrame, workers: int = WORKERS
-) -> GeoDataFrame:
+    path: Iterable[Union[Path, str]], tiles_df: gpd.GeoDataFrame, workers: int = WORKERS
+) -> gpd.GeoDataFrame:
     """Identify tiles that only contain NoData (in parallel)"""
-    tile_names = sorted(path)
+
+    tile_names = sorted([Path(p) if isinstance(p, str) else p for p in path])
 
     results = process_map(_identify_empty, tile_names, max_workers=workers, chunksize=1)
 
@@ -120,8 +117,8 @@ def exclude_nodata_tiles(
 
 
 def split_groundtruth_data_by_tiles(
-    dtree: GeoDataFrame, tiles_df: GeoDataFrame
-) -> GeoDataFrame:
+    dtree: gpd.GeoDataFrame, tiles_df: gpd.GeoDataFrame
+) -> gpd.GeoDataFrame:
     """Split the oberserved dead tree areas into tile segments for fast er downstream processing"""
 
     union_gpd = gpd.overlay(dtree, tiles_df, how="union")
@@ -138,9 +135,10 @@ def split_groundtruth_data_by_tiles(
 
 def _mask_tile(
     tile_filename: str,
-    groundtruth_df: GeoDataFrame = None,
-    crs: str = None,
-    base_path: Path = None,
+    *,
+    groundtruth_df: gpd.GeoDataFrame,
+    crs: str,
+    base_path: Path,
 ) -> float:
 
     image_tile_path = base_path / "tiles" / tile_filename
@@ -167,7 +165,7 @@ def _mask_tile(
 
 
 def create_tile_mask_geotiffs(
-    tiles_df_train: GeoDataFrame, workers: int = WORKERS, **kwargs
+    tiles_df_train: gpd.GeoDataFrame, workers: int = WORKERS, **kwargs
 ) -> None:
     """Create binary mask geotiffs"""
     _ = process_map(
