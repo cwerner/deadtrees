@@ -1,0 +1,10 @@
+train:
+  learning_rate: 0.001
+  run_test: false
+
+pl_trainer: {}
+
+defaults:
+  - data: deadtrees
+  - network: default
+  - logger: wandb
