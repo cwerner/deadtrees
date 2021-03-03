@@ -1,16 +1,16 @@
 # source: https://github.com/PyTorchLightning/pytorch-lightning-bolts (Apache2)
 
+import logging
 from argparse import ArgumentParser
-from omegaconf import DictConfig
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
-from torch.nn import functional as F
-import wandb
-import numpy as np
+from omegaconf import DictConfig
 from pl_bolts.models.vision.unet import UNet
-import logging
+from torch.nn import functional as F
 
+import wandb
 from src.visualization.helper import show
 
 logger = logging.getLogger(__name__)
@@ -26,75 +26,76 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         self.save_hyperparameters()  # type: ignore
 
     def training_step(self, batch, batch_idx):
-        img, mask = batch['image'], batch['mask']
+        img, mask = batch["image"], batch["mask"]
         img = img.float()
         mask = mask.long()
 
         out = self(img)
         loss_val = F.cross_entropy(out, mask, ignore_index=250)
-        log_dict = {'train_loss': loss_val}
+        # log_dict = {"train_loss": loss_val}
         self.log("loss", loss_val)
 
-        #return {'loss': loss_val, 'log': log_dict, 'progress_bar': log_dict}
+        # return {'loss': loss_val, 'log': log_dict, 'progress_bar': log_dict}
         return loss_val
 
     def validation_step(self, batch, batch_idx):
-        img, mask = batch['image'], batch['mask']
+        img, mask = batch["image"], batch["mask"]
         img = img.float()
         mask = mask.long()
         out = self(img)
         loss_val = F.cross_entropy(out, mask, ignore_index=250)
 
         if batch_idx == 0:
-            stats = batch['stats'] if 'stats' in batch else None
-            sample_chart = show(x=img.cpu(), y=mask.cpu(), y_hat=out.cpu(), n_samples=4, stats=stats)
+            stats = batch["stats"] if "stats" in batch else None
+            sample_chart = show(
+                x=img.cpu(), y=mask.cpu(), y_hat=out.cpu(), n_samples=4, stats=stats
+            )
 
-        # TODO: use native wandb semantic segmentation UI
+            # TODO: use native wandb semantic segmentation UI
 
-        # class_labels = {
-        #     1: "deadtrees",
-        # }
+            # class_labels = {
+            #     1: "deadtrees",
+            # }
 
-        # img = np.array(img[0].cpu().permute(1, 2, 0) * 255, dtype='uint8')
-        # msk = np.array(mask[0].squeeze().cpu())
-        # prd = np.array(out[0].squeeze().cpu())
+            # img = np.array(img[0].cpu().permute(1, 2, 0) * 255, dtype='uint8')
+            # msk = np.array(mask[0].squeeze().cpu())
+            # prd = np.array(out[0].squeeze().cpu())
 
-        # logger.info(prd.shape)
+            # logger.info(prd.shape)
 
-        # xxx = wandb.Image(img, masks={
-        #     "predictions": {
-        #         "mask_data": prd,
-        #         "class_labels": class_labels
-        #         },
-        #     "ground_truth": {
-        #         "mask_data": msk,
-        #         "class_labels": class_labels
-        #         },
-        #     },
-        # )
-        #self.logger.experiment.log({'native': xxx})
+            # xxx = wandb.Image(img, masks={
+            #     "predictions": {
+            #         "mask_data": prd,
+            #         "class_labels": class_labels
+            #         },
+            #     "ground_truth": {
+            #         "mask_data": msk,
+            #         "class_labels": class_labels
+            #         },
+            #     },
+            # )
+            # self.logger.experiment.log({'native': xxx})
 
-            self.logger.experiment.log({
-                f"sample": wandb.Image(
-                    sample_chart, 
-                    caption=f"Sample-{self.trainer.global_step}"
+            self.logger.experiment.log(
+                {
+                    "sample": wandb.Image(
+                        sample_chart, caption=f"Sample-{self.trainer.global_step}"
                     )
-                }, commit=False) 
-        
+                },
+                commit=False,
+            )
+
         self.log("val_loss", loss_val)
 
         return loss_val
 
-
     def configure_optimizers(self):
         opt = torch.optim.Adam(
-            self.parameters(), 
+            self.parameters(),
             lr=self.hparams.train_conf.learning_rate,
-            )
+        )
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=10)
         return [opt], [sch]
-
-
 
 
 # class SemSegment(pl.LightningModule):
