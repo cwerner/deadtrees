@@ -9,9 +9,9 @@ from src.version import __version__
 if not MODEL_CHECKPOINT_PATH.exists():
     # develop will be in argv if we do e.g. `pip install -e .`
     if "develop" not in sys.argv:
-        logger.error("can't build a non-development package with no model")
-        raise FileNotFoundError(MODEL_CHECKPOINT_PATH)
-
+        #logger.error("can't build a non-development package with no model")
+        #raise FileNotFoundError(MODEL_CHECKPOINT_PATH)
+        pass
 setup(
     name="deadtrees",
     version=__version__,
@@ -37,8 +37,8 @@ setup(
     },
     package_data={
         "deadtrees": [
-            str(MODEL_CHECKPOINT_PATH.relative_to(PACKAGE_DIR) / "*.torch"),
-            str(HOME_HTML.relative_to(PACKAGE_DIR)),
+            #str(MODEL_CHECKPOINT_PATH.relative_to(PACKAGE_DIR) / "*.torch"),
+            #str(HOME_HTML.relative_to(PACKAGE_DIR)),
         ]
     },
 )
