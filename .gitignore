@@ -6,6 +6,10 @@ data/
 lightning_logs/
 outputs/
 
+# ignore data files
+*.torch
+*.ckpt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
