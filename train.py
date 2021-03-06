@@ -12,11 +12,10 @@ import pandas as pd
 import pl_bolts
 import pytorch_lightning as pl
 import torch
+from deadtrees.callbacks.checkpoint import checkpoint_callback
+from deadtrees.loss.tversky.binary import BinaryTverskyLossV2
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
-
-from src.callbacks.checkpoint import checkpoint_callback
-from src.loss.tversky.binary import BinaryTverskyLossV2
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 

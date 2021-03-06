@@ -3,13 +3,12 @@ from pathlib import Path
 from warnings import warn
 
 import torch
+import wandb
 from PIL import Image, ImageDraw, ImageFont
 from pytorch_lightning import Callback
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch._C import device
 from typing_extensions import Annotated
-
-import wandb
 
 logger = logging.getLogger(__name__)
 

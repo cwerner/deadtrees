@@ -38,7 +38,7 @@ known_first_party = [
 ]
 profile = "black"
 line_length = 88
-force_sort_within_sections = "False"
-order_by_type = "False"
+force_sort_within_sections = false
+order_by_type = false
 multi_line_output = 3
-include_trailing_comma = True
+include_trailing_comma = true

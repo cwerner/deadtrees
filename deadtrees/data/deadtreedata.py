@@ -7,14 +7,13 @@ import pandas as pd
 import pytorch_lightning as pl
 import skimage
 import torch
+from deadtrees.data.transforms import (  # Rescale - rescale disabled for now/ messes with types
+    ToTensor,
+)
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-
-from src.data.transforms import (  # Rescale - rescale disabled for now/ messes with types
-    ToTensor,
-)
 
 logger = logging.getLogger(__name__)
 

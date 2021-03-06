@@ -1,7 +1,6 @@
 import logging
 
 import numpy as np
-import skimage
 import torch
 
 logger = logging.getLogger(__name__)

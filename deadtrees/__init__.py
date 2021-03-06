@@ -1,6 +1,6 @@
 import logging
 
-from src.version import __version__
+from deadtrees.version import __version__
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
