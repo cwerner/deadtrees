@@ -1,4 +1,5 @@
 import logging
+
 from src.version import __version__
 
 logger = logging.getLogger(__name__)
