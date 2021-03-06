@@ -2,6 +2,7 @@ wandb
 .vscode
 .envrc
 misc/
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
