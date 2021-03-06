@@ -12,9 +12,9 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from src.data.transforms import (
+from src.data.transforms import (  # Rescale - rescale disabled for now/ messes with types
     ToTensor,
-)  # Rescale - rescale disabled for now/ messes with types
+)
 
 logger = logging.getLogger(__name__)
 

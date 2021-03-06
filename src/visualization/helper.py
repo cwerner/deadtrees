@@ -54,9 +54,8 @@ def show(
 
     subplot_size = 4  # plt in inches
 
-    #n_samples = n_samples if len(x) > n_samples else len(x)
+    # n_samples = n_samples if len(x) > n_samples else len(x)
     n_samples = len(x) if not n_samples or len(x) > n_samples else n_samples
-
 
     fig_size_x = subplot_size * (len(items) + 1)
     fig_size_y = subplot_size * n_samples
