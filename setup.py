@@ -18,6 +18,7 @@ setup(
     install_requires=[
         "bottleneck",
         "dask",
+        "dotenv",
         "fastapi",
         "hydra-core",
         "pydantic",

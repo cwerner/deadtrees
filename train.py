@@ -14,6 +14,7 @@ import pytorch_lightning as pl
 import torch
 from deadtrees.callbacks.checkpoint import checkpoint_callback
 from deadtrees.loss.tversky.binary import BinaryTverskyLossV2
+from deadtrees.utils import get_env, load_envs
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 
@@ -23,8 +24,10 @@ warnings.simplefilter(action="ignore", category=UserWarning)
 logger = logging.getLogger(__name__)
 
 
+# Load environment variables
+load_envs()
+
 TILE_SIZE = 512
-DATA_PATH = Path("data/dataset/train")
 
 
 @hydra.main(config_path="conf", config_name="config")
@@ -36,7 +39,7 @@ def main(cfg: DictConfig) -> pl.Trainer:
     network = instantiate(cfg.network, cfg.train)
     data = instantiate(cfg.data)
     data.setup(
-        data_dir=DATA_PATH,
+        data_dir=get_env("TRAIN_DATASET_PATH"),
         reduce=5000,
     )
 
