@@ -1,7 +1,6 @@
 # @package _global_
 data:
-  _target_: src.data.deadtreedata.DeadtreesDataModule
-  data_dir: data/dataset/train
+  _target_: deadtrees.data.deadtreedata.DeadtreesDataModule
   df_file: subtile_stats.csv
   train_dataloader_conf:
     batch_size: 8
