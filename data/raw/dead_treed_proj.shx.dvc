@@ -1,0 +1,5 @@
+outs:
+- md5: f2e5b8e7338cf8848fa4518c9b65a595
+  size: 61972
+  path: dead_treed_proj.shx
+  isexec: true
