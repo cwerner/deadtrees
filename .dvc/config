@@ -1,2 +1,4 @@
+[core]
+    remote = titan
 ['remote "titan"']
     url = ../ssh:werner-ch@172.27.60.92:/glacier2/dldatasets/deadtrees
