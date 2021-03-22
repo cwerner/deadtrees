@@ -1,0 +1,35 @@
+# dvc project pipeline
+
+stages:
+  createtiles:
+    cmd: >-
+      mkdir data/processed;
+      gdal_retile.py 
+      -csv data/locations.csv 
+      -v -ps ${createtiles.size} ${createtiles.size} 
+      -targetDir data/processed 
+      data/raw/tif_ortho_2019.tif
+    deps:
+    - data/raw/tif_ortho_2019.tif
+    params:
+    - createtiles.size
+    outs:
+    - data/processed
+    - data/locations.csv
+
+  createmasks:
+    cmd: >-
+      python preprocessing.py
+    deps:
+    - data/processed
+    - data/locations.csv
+    - data/raw/dead_treed_proj.shp
+    - data/raw/dead_treed_proj.shx
+    - data/raw/dead_treed_proj.dbf
+    - data/raw/dead_treed_proj.prj
+    outs:
+    - data/dataset 
+
+  # createsubtiles:
+
+  # train:
