@@ -2,3 +2,7 @@
     remote = titan
 ['remote "titan"']
     url = /glacier2/dvc-remote
+['remote "ifu-s3"']
+    url = s3://deadtrees/dvc
+    endpointurl = https://s3.imk-ifu.kit.edu:8082
+    profile = ifu-s3
