@@ -1,0 +1,41 @@
+schema: '2.0'
+stages:
+  createtiles:
+    cmd: mkdir data/processed; gdal_retile.py  -csv locations.csv  -v -ps 8192 8192  -targetDir
+      data/processed  data/raw/tif_ortho_2019.tif
+    deps:
+    - path: data/raw/tif_ortho_2019.tif
+      md5: f29b9345665f25e7465eafa3bd6f2f49
+      size: 353002145755
+    params:
+      params.yaml:
+        createtiles.size: 8192
+    outs:
+    - path: data/processed
+      md5: 8e0dad77ac56b79edfb38c665fc9f2dc.dir
+      size: 176207135441
+      nfiles: 899
+  createmasks:
+    cmd: python createmasks.py data/processed data/processed.masks data/raw/dead_treed_proj.shp
+    deps:
+    - path: data/processed
+      md5: 8e0dad77ac56b79edfb38c665fc9f2dc.dir
+      size: 176207135441
+      nfiles: 899
+    - path: data/raw/dead_treed_proj.dbf
+      md5: bdd8cf66420982fa5732ce0123ba52dc
+      size: 162512
+    - path: data/raw/dead_treed_proj.prj
+      md5: 800897f6385d09a99ee62978930f07fe
+      size: 436
+    - path: data/raw/dead_treed_proj.shp
+      md5: 2389ce8034d1c6f3955ecf7bd4b5f109
+      size: 2160036
+    - path: data/raw/dead_treed_proj.shx
+      md5: f2e5b8e7338cf8848fa4518c9b65a595
+      size: 61972
+    outs:
+    - path: data/processed.masks
+      md5: 8edf67f80f26d5518fc3e8bd7fc48ccd.dir
+      size: 1476585682
+      nfiles: 22
