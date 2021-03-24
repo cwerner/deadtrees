@@ -12,16 +12,16 @@ stages:
         createtiles.size: 8192
     outs:
     - path: data/processed
-      md5: 8e0dad77ac56b79edfb38c665fc9f2dc.dir
-      size: 176207135441
-      nfiles: 899
+      md5: 56dff7c0a84dc9b8713b70bb332717b9.dir
+      size: 246169549118
+      nfiles: 1523
   createmasks:
     cmd: python createmasks.py data/processed data/processed.masks data/raw/dead_treed_proj.shp
     deps:
     - path: data/processed
-      md5: 8e0dad77ac56b79edfb38c665fc9f2dc.dir
-      size: 176207135441
-      nfiles: 899
+      md5: 56dff7c0a84dc9b8713b70bb332717b9.dir
+      size: 246169549118
+      nfiles: 1523
     - path: data/raw/dead_treed_proj.dbf
       md5: bdd8cf66420982fa5732ce0123ba52dc
       size: 162512
