@@ -1,9 +1,7 @@
 [core]
-    remote = titan
+    remote = ifu-s3
 [cache]
     dir = /glacier2/dvc-cache
-['remote "titan"']
-    url = /glacier2/dvc-remote
 ['remote "ifu-s3"']
     url = s3://deadtrees/dvc
     endpointurl = https://s3.imk-ifu.kit.edu:8082
