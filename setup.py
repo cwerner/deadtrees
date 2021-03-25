@@ -18,6 +18,7 @@ setup(
     install_requires=[
         "bottleneck",
         "dask",
+        "dvc[s3]",
         "python-dotenv",
         "fastapi",
         "hydra-core",
@@ -29,7 +30,8 @@ setup(
         "tqdm",
         "xarray",
     ],
-    extras_require={"train": ["wandb"]},
+    extras_require={"train": ["wandb"],
+                    "preprocess": ["gdal", "pygeos"]},
     entry_points={
         "demo": [
             "deadtrees=deadtrees.__main__:main",
