@@ -1,5 +1,7 @@
 [core]
     remote = titan
+[cache]
+    dir = /glacier2/dvc-cache
 ['remote "titan"']
     url = /glacier2/dvc-remote
 ['remote "ifu-s3"']

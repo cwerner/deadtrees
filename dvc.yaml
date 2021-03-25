@@ -6,7 +6,8 @@ stages:
       mkdir data/processed;
       gdal_retile.py 
       -csv locations.csv 
-      -v -ps ${createtiles.size} ${createtiles.size} 
+      -v -ps ${createtiles.size} ${createtiles.size}
+      -co "TILED=YES" -co "COMPRESS=LZW" 
       -targetDir data/processed 
       data/raw/tif_ortho_2019.tif
     deps:
@@ -18,7 +19,7 @@ stages:
 
   createmasks:
     cmd: >-
-      python preprocessing.py
+      python createmasks.py data/processed data/processed.masks data/raw/dead_treed_proj.shp
     deps:
     - data/processed
     - data/raw/dead_treed_proj.shp
@@ -26,7 +27,7 @@ stages:
     - data/raw/dead_treed_proj.dbf
     - data/raw/dead_treed_proj.prj
     outs:
-    - data/dataset 
+    - data/processed.masks 
 
   # createsubtiles:
 
