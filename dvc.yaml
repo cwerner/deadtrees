@@ -29,6 +29,14 @@ stages:
     outs:
     - data/processed.masks 
 
-  # createsubtiles:
+  createdataset:
+    cmd: >-
+      mkdir data/dataset; 
+      touch data/dataset/dummy
+    deps:
+    - data/processed
+    - data/processed.masks 
+    outs:
+    - data/dataset
 
   # train:
