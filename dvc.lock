@@ -39,3 +39,19 @@ stages:
       md5: 8edf67f80f26d5518fc3e8bd7fc48ccd.dir
       size: 1476585682
       nfiles: 22
+  createdataset:
+    cmd: mkdir data/dataset;  touch data/dataset/dummy
+    deps:
+    - path: data/processed
+      md5: 00a42f0155c9fb5bc3f5bb1a93156647.dir
+      size: 169237483862
+      nfiles: 1837
+    - path: data/processed.masks
+      md5: 8edf67f80f26d5518fc3e8bd7fc48ccd.dir
+      size: 1476585682
+      nfiles: 22
+    outs:
+    - path: data/dataset
+      md5: 3ef2a6c7127e8a897215c0180457149a.dir
+      size: 0
+      nfiles: 1
