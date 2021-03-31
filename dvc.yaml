@@ -31,8 +31,7 @@ stages:
 
   createdataset:
     cmd: >-
-      mkdir data/dataset; 
-      touch data/dataset/dummy
+      python createdataset.py data/processed data/processed.masks data/dataset 
     deps:
     - data/processed
     - data/processed.masks 
