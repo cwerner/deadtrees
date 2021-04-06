@@ -9,7 +9,7 @@ stages:
       size: 353002145755
     params:
       params.yaml:
-        createtiles.size: 8192
+        source_dim: 8192
     outs:
     - path: data/processed
       md5: 00a42f0155c9fb5bc3f5bb1a93156647.dir
@@ -40,18 +40,23 @@ stages:
       size: 5973460259
       nfiles: 89
   createdataset:
-    cmd: mkdir data/dataset;  touch data/dataset/dummy
+    cmd: python createdataset.py data/processed data/processed.masks data/dataset  --source_dim
+      8192 --tile_size 512 --all
     deps:
     - path: data/processed
       md5: 00a42f0155c9fb5bc3f5bb1a93156647.dir
       size: 169237483862
       nfiles: 1837
     - path: data/processed.masks
-      md5: 8edf67f80f26d5518fc3e8bd7fc48ccd.dir
-      size: 1476585682
-      nfiles: 22
+      md5: b671c41c7ac6670bae314d3fa076115d.dir
+      size: 5973460259
+      nfiles: 89
+    params:
+      params.yaml:
+        createdataset.tile_size: 512
+        source_dim: 8192
     outs:
     - path: data/dataset
-      md5: 3ef2a6c7127e8a897215c0180457149a.dir
-      size: 0
-      nfiles: 1
+      md5: 7718c06909ef3c5286280a630f130418.dir
+      size: 22573444193
+      nfiles: 43043

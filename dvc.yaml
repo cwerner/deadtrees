@@ -6,14 +6,14 @@ stages:
       mkdir data/processed;
       gdal_retile.py 
       -csv locations.csv 
-      -v -ps ${createtiles.size} ${createtiles.size}
+      -v -ps ${source_dim} ${source_dim}
       -co "TILED=YES" -co "COMPRESS=LZW" 
       -targetDir data/processed 
       data/raw/tif_ortho_2019.tif
     deps:
     - data/raw/tif_ortho_2019.tif
     params:
-    - createtiles.size
+    - source_dim
     outs:
     - data/processed
 
@@ -32,9 +32,15 @@ stages:
   createdataset:
     cmd: >-
       python createdataset.py data/processed data/processed.masks data/dataset 
+      --source_dim ${source_dim}
+      --tile_size ${createdataset.tile_size}
+      --all
     deps:
     - data/processed
     - data/processed.masks 
+    params:
+    - source_dim
+    - createdataset.tile_size
     outs:
     - data/dataset
 
