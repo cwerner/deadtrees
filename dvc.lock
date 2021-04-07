@@ -12,9 +12,9 @@ stages:
         source_dim: 8192
     outs:
     - path: data/processed
-      md5: 00a42f0155c9fb5bc3f5bb1a93156647.dir
-      size: 169237483862
-      nfiles: 1837
+      md5: 47072b35402c0e5113b1c912a47c7bc8.dir
+      size: 169238409104
+      nfiles: 1839
   createmasks:
     cmd: python createmasks.py data/processed data/processed.masks data/raw/dead_treed_proj.shp
     deps:
