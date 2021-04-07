@@ -19,9 +19,9 @@ stages:
     cmd: python createmasks.py data/processed data/processed.masks data/raw/dead_treed_proj.shp
     deps:
     - path: data/processed
-      md5: 00a42f0155c9fb5bc3f5bb1a93156647.dir
-      size: 169237483862
-      nfiles: 1837
+      md5: 47072b35402c0e5113b1c912a47c7bc8.dir
+      size: 169238409104
+      nfiles: 1839
     - path: data/raw/dead_treed_proj.dbf
       md5: bdd8cf66420982fa5732ce0123ba52dc
       size: 162512
@@ -36,7 +36,7 @@ stages:
       size: 61972
     outs:
     - path: data/processed.masks
-      md5: b671c41c7ac6670bae314d3fa076115d.dir
+      md5: f39a35312f6231103bdb82c2090882ee.dir
       size: 5973460259
       nfiles: 89
   createdataset:
@@ -44,11 +44,11 @@ stages:
       8192 --tile_size 512
     deps:
     - path: data/processed
-      md5: 00a42f0155c9fb5bc3f5bb1a93156647.dir
-      size: 169237483862
-      nfiles: 1837
+      md5: 47072b35402c0e5113b1c912a47c7bc8.dir
+      size: 169238409104
+      nfiles: 1839
     - path: data/processed.masks
-      md5: b671c41c7ac6670bae314d3fa076115d.dir
+      md5: f39a35312f6231103bdb82c2090882ee.dir
       size: 5973460259
       nfiles: 89
     params:
@@ -57,6 +57,6 @@ stages:
         source_dim: 8192
     outs:
     - path: data/dataset
-      md5: ff68462a563cebeb122ed3d5d617b618.dir
-      size: 22699478530
+      md5: db0e262e28dc1a469a28f452ed47a7b7.dir
+      size: 22699480850
       nfiles: 23
