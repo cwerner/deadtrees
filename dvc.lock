@@ -41,7 +41,7 @@ stages:
       nfiles: 89
   createdataset:
     cmd: python createdataset.py data/processed data/processed.masks data/dataset  --source_dim
-      8192 --tile_size 512 --all
+      8192 --tile_size 512
     deps:
     - path: data/processed
       md5: 00a42f0155c9fb5bc3f5bb1a93156647.dir
@@ -57,6 +57,6 @@ stages:
         source_dim: 8192
     outs:
     - path: data/dataset
-      md5: 9209320d047ceff5ca9c3f71a73496fa.dir
-      size: 206233286761
-      nfiles: 276537
+      md5: ff68462a563cebeb122ed3d5d617b618.dir
+      size: 22699478530
+      nfiles: 23

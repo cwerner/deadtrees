@@ -34,7 +34,6 @@ stages:
       python createdataset.py data/processed data/processed.masks data/dataset 
       --source_dim ${source_dim}
       --tile_size ${createdataset.tile_size}
-      --all
     deps:
     - data/processed
     - data/processed.masks 
