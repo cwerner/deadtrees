@@ -46,12 +46,10 @@ def exclude_nodata_tiles(
     valid_d = dict([(t.name, r) for t, r in zip(tile_names, results)])
 
     tiles_df["status"] = tiles_df.filename.map(valid_d)
-    tiles_df.to_file("exclude.shp")
     # limit tiles to those with actual data (and delete status column afterwards)
     return tiles_df[tiles_df.status == 1].drop("status", axis=1)
 
 
-# ok
 def create_tile_grid_gdf(path: Union[Path, str], crs: str) -> gpd.GeoDataFrame:
     """Convert gdal_tile split info file into geopandas dataframe"""
 
@@ -71,8 +69,6 @@ def split_groundtruth_data_by_tiles(
     union_gpd = gpd.overlay(dtree, tiles_df, how="union")
     union_gpd["id"] = union_gpd.id.fillna(1)
     union_gpd.loc[union_gpd.id > 1, "id"] = 2
-
-    union_gpd.to_file("union.shp")
 
     train_files = list(
         sorted(union_gpd[union_gpd.id == 2].filename.value_counts().keys())
@@ -118,13 +114,12 @@ def create_tile_mask_geotiffs(
     tiles_df_train: gpd.GeoDataFrame, workers: int, **kwargs
 ) -> None:
     """Create binary mask geotiffs"""
-    pct = process_map(
+    process_map(
         partial(_mask_tile, **kwargs),
         tiles_df_train.filename.values,
         max_workers=workers,
         chunksize=1,
     )
-    print(pct)
 
 
 def create_masks(indir: str, outdir: str, shpfile: str, workers: int) -> None:
