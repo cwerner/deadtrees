@@ -57,6 +57,6 @@ stages:
         source_dim: 8192
     outs:
     - path: data/dataset
-      md5: 7718c06909ef3c5286280a630f130418.dir
-      size: 22573444193
-      nfiles: 43043
+      md5: 9209320d047ceff5ca9c3f71a73496fa.dir
+      size: 206233286761
+      nfiles: 276537
