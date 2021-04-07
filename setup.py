@@ -28,10 +28,10 @@ setup(
         "pytorch-lightning-bolts",
         "rioxarray",
         "tqdm",
+        "webdataset",
         "xarray",
     ],
-    extras_require={"train": ["wandb"],
-                    "preprocess": ["gdal", "pygeos"]},
+    extras_require={"train": ["wandb"], "preprocess": ["gdal", "pygeos"]},
     entry_points={
         "demo": [
             "deadtrees=deadtrees.__main__:main",
