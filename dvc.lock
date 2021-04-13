@@ -53,11 +53,34 @@ stages:
       nfiles: 89
     params:
       params.yaml:
-        createdataset.file_type: PNG
         createdataset.tile_size: 512
+        file_type: PNG
         source_dim: 8192
     outs:
-    - path: data/dataset
-      md5: 7c012998027dc4cbb78a52fb1452cb98.dir
-      size: 8441120530
-      nfiles: 23
+    - path: data/dataset/stats.csv
+      md5: acb924c4d740c9c0c1c9c2e9fa3de8c6
+      size: 626450
+    - path: data/dataset/train
+      md5: 731c1ee66a14bf5df76c9cb4affaeb1b.dir
+      size: 8440494080
+      nfiles: 22
+  createbalanced:
+    cmd: python createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short
+      --format PNG
+    deps:
+    - path: data/dataset/train
+      md5: 731c1ee66a14bf5df76c9cb4affaeb1b.dir
+      size: 8440494080
+      nfiles: 22
+    params:
+      params.yaml:
+        file_type: PNG
+    outs:
+    - path: data/dataset/train_balanced
+      md5: 461ef3d0701db0d9314ab1e794914bbb.dir
+      size: 8434124800
+      nfiles: 42
+    - path: data/dataset/train_balanced_short
+      md5: dfffb26b86800bc4fefc9820e2a718f5.dir
+      size: 1113671680
+      nfiles: 20

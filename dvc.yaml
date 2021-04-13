@@ -34,15 +34,32 @@ stages:
       python createdataset.py data/processed data/processed.masks data/dataset 
       --source_dim ${source_dim}
       --tile_size ${createdataset.tile_size}
-      --format ${createdataset.file_type}
+      --format ${file_type}
     deps:
     - data/processed
     - data/processed.masks 
     params:
     - source_dim
     - createdataset.tile_size
-    - createdataset.file_type
+    - file_type
     outs:
-    - data/dataset
+    - data/dataset/train
+    - data/dataset/stats.csv 
+
+  createbalanced:
+    cmd: >-
+      python createbalanced.py 
+      data/dataset/stats.csv
+      data/dataset/train 
+      data/dataset/train_balanced 
+      data/dataset/train_balanced_short
+      --format ${file_type}
+    deps:
+    - data/dataset/train
+    params:
+    - file_type
+    outs:
+    - data/dataset/train_balanced
+    - data/dataset/train_balanced_short
 
   # train:
