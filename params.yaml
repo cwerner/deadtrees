@@ -2,3 +2,4 @@ source_dim: 8192
 
 createdataset:
   tile_size: 512
+  file_type: PNG

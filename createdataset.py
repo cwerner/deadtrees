@@ -43,6 +43,7 @@ def _split_tile(
     *,
     source_dim: int,
     tile_size: int,
+    format: str,
     outdir: Path,
 ) -> List[Tuple[str, bytes, bytes]]:
     """Helper func for split_tiles"""
@@ -65,6 +66,13 @@ def _split_tile(
         subtile_mask = make_blocks_vectorized(mask_data, tile_size)
 
     samples = []
+    if format == "TIFF":
+        suffix = "tif"
+    elif format == "PNG":
+        suffix = "png"
+    else:
+        raise NotImplementedError
+
     for i in range(subtile_rgb.shape[0]):
         subtile_name = f"{mask.name[:-4]}_{i:03d}"
 
@@ -73,17 +81,17 @@ def _split_tile(
             im_mask = Image.fromarray(subtile_mask[i].squeeze())
 
             im_byte_arr = io.BytesIO()
-            im.save(im_byte_arr, format="TIFF")
+            im.save(im_byte_arr, format=format)
             im_byte_arr = im_byte_arr.getvalue()
 
             im_mask_byte_arr = io.BytesIO()
-            im_mask.save(im_mask_byte_arr, format="TIFF")
+            im_mask.save(im_mask_byte_arr, format=format)
             im_mask_byte_arr = im_mask_byte_arr.getvalue()
 
             sample = {
                 "__key__": subtile_name,
-                "rgb.tif": im_byte_arr,
-                "msk.tif": im_mask_byte_arr,
+                f"rgb.{suffix}": im_byte_arr,
+                f"msk.{suffix}": im_mask_byte_arr,
                 "txt": str(
                     round(
                         float(subtile_mask[i].sum()) / (tile_size * tile_size) * 100, 2
@@ -123,6 +131,7 @@ def _split_inference_tile(
     *,
     source_dim: int,
     tile_size: int,
+    format: str,
     outdir: Path,
 ) -> List[float]:
     """Helper func for split_inference_tiles"""
@@ -138,6 +147,13 @@ def _split_inference_tile(
         subtile_rgb = make_blocks_vectorized(rgb_data, tile_size)
 
     samples = []
+    if format == "TIFF":
+        suffix = "tif"
+    elif format == "PNG":
+        suffix = "png"
+    else:
+        raise NotImplementedError
+
     for i in range(subtile_rgb.shape[0]):
         subtile_name = f"{image.name[:-4]}_{i:03d}"
 
@@ -145,12 +161,12 @@ def _split_inference_tile(
             im = Image.fromarray(np.rollaxis(subtile_rgb[i], 0, 3))
 
             im_byte_arr = io.BytesIO()
-            im.save(im_byte_arr, format="TIFF")
+            im.save(im_byte_arr, format=format)
             im_byte_arr = im_byte_arr.getvalue()
 
             sample = {
                 "__key__": subtile_name,
-                "rgb.tif": im_byte_arr,
+                f"rgb.{suffix}": im_byte_arr,
             }
             samples.append(sample)
     return samples
@@ -196,7 +212,7 @@ def main():
         dest="source_dim",
         type=int,
         default=8192,
-        help="size of input tiles [def: 8192]",
+        help="size of input tiles [def: %(default)s]",
     )
 
     parser.add_argument(
@@ -204,7 +220,16 @@ def main():
         dest="tile_size",
         type=int,
         default=512,
-        help="size of final tiles that are then passed to the model [def: 512]",
+        help="size of final tiles that are then passed to the model [def: %(default)s]",
+    )
+
+    parser.add_argument(
+        "--format",
+        dest="format",
+        type=str,
+        default="PNG",
+        choices=["PNG", "TIFF"],
+        help="target file format (PNG, TIFF) [def: %(default)s]",
     )
 
     parser.add_argument(
@@ -242,6 +267,7 @@ def main():
         source_dim=args.source_dim,
         tile_size=args.tile_size,
         outdir=args.outdir,
+        format=args.format,
     )
 
     if args.inference_tiles:

@@ -41,7 +41,7 @@ stages:
       nfiles: 89
   createdataset:
     cmd: python createdataset.py data/processed data/processed.masks data/dataset  --source_dim
-      8192 --tile_size 512
+      8192 --tile_size 512 --format PNG
     deps:
     - path: data/processed
       md5: 47072b35402c0e5113b1c912a47c7bc8.dir
@@ -53,10 +53,11 @@ stages:
       nfiles: 89
     params:
       params.yaml:
+        createdataset.file_type: PNG
         createdataset.tile_size: 512
         source_dim: 8192
     outs:
     - path: data/dataset
-      md5: db0e262e28dc1a469a28f452ed47a7b7.dir
-      size: 22699480850
+      md5: 7c012998027dc4cbb78a52fb1452cb98.dir
+      size: 8441120530
       nfiles: 23

@@ -34,12 +34,14 @@ stages:
       python createdataset.py data/processed data/processed.masks data/dataset 
       --source_dim ${source_dim}
       --tile_size ${createdataset.tile_size}
+      --format ${createdataset.file_type}
     deps:
     - data/processed
     - data/processed.masks 
     params:
     - source_dim
     - createdataset.tile_size
+    - createdataset.file_type
     outs:
     - data/dataset
 
