@@ -1,6 +1,9 @@
 import logging
+import math
 from pathlib import Path
 from typing import Any, List, Optional, Union
+
+import webdataset as wds
 
 import numpy as np
 import pandas as pd
@@ -161,3 +164,99 @@ class DeadtreesDataModule(pl.LightningDataModule):
 
     def test_dataloader(self) -> DataLoader:
         return DataLoader(self.test_data, shuffle=False, **self.test_dataloader_conf)
+
+
+def split_shards(original_list, weight_list):
+    sublists = []
+    prev_index = 0
+    for weight in weight_list:
+        next_index = prev_index + math.ceil((len(original_list) * weight))
+
+        sublists.append([str(x) for x in original_list[prev_index:next_index]])
+        prev_index = next_index
+
+    return sublists
+
+
+def identity(x):
+    return x
+
+
+# normalize = transforms.Normalize(
+#     mean=[0.485, 0.456, 0.406],
+#     std=[0.229, 0.224, 0.225])
+
+# preproc = transforms.Compose([
+#     transforms.ToTensor(),
+#     normalize,
+# ])
+
+preproc = transforms.Compose(
+    [
+        transforms.ToTensor(),
+    ]
+)
+
+
+class WDSDeadtreesDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
+        data_dir,
+        pattern,
+        train_dataloader_conf: Optional[DictConfig] = None,
+        val_dataloader_conf: Optional[DictConfig] = None,
+        test_dataloader_conf: Optional[DictConfig] = None,
+    ):
+        super().__init__()
+        self.data_shards = sorted(Path(data_dir).glob(pattern))
+        print(Path(data_dir))
+        print(pattern)
+        print(self.data_shards)
+        self.train_dataloader_conf = train_dataloader_conf or OmegaConf.create()
+        self.val_dataloader_conf = val_dataloader_conf or OmegaConf.create()
+        self.test_dataloader_conf = test_dataloader_conf or OmegaConf.create()
+
+        self.transform = transforms.Compose(
+            [
+                # Rescale(TILE_SIZE),
+                ToTensor()
+            ]
+        )
+
+    def setup(
+        self,
+        split: List[float] = FRACTIONS,
+    ) -> None:
+
+        train, valid, test = split_shards(self.data_shards, split)
+        self.train_data = (
+            wds.WebDataset(train, length=int(1e9))
+            .decode("pil")
+            .rename(image="rgb.png", mask="msk.png")
+            .to_tuple("image", "mask")
+            .map_tuple(transforms.ToTensor(), transforms.ToTensor())
+        )
+
+        self.val_data = (
+            wds.WebDataset(valid, length=int(1e9))
+            .decode("pil")
+            .rename(image="rgb.png", mask="msk.png")
+            .to_tuple("image", "mask")
+            .map_tuple(transforms.ToTensor(), transforms.ToTensor())
+        )
+
+        self.test_data = (
+            wds.Dataset(test)
+            .rename(image="rgb.png", mask="msk.png")
+            .decode("pil", handler=wds.warn_and_continue)
+            .map_dict(image=preproc, mask=preproc)
+        )
+
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(self.train_data, **self.train_dataloader_conf)
+
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(self.val_data, **self.val_dataloader_conf)
+
+    def test_dataloader(self) -> DataLoader:
+        return DataLoader(self.test_data, **self.test_dataloader_conf)

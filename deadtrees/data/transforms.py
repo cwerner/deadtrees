@@ -1,6 +1,8 @@
+import io
 import logging
 
 import numpy as np
+import skimage
 import torch
 
 logger = logging.getLogger(__name__)
@@ -47,12 +49,14 @@ class ToTensor:
 
     def __call__(self, sample):
         image, mask = sample["image"], sample["mask"]
-
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
-        image = image.transpose((2, 0, 1))
+        # image = image.transpose((2, 0, 1))
 
+        image = skimage.io.imread(io.BytesIO(image))
         sample["image"] = torch.from_numpy(image) / 255
-        sample["mask"] = torch.from_numpy(mask.astype(np.uint8))
+
+        mask = skimage.io.imread(io.BytesIO(mask))
+        sample["mask"] = torch.from_numpy(mask.astype("uint8"))
         return sample
