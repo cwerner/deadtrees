@@ -25,7 +25,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         self.save_hyperparameters()  # type: ignore
 
     def training_step(self, batch, batch_idx):
-        img, mask = batch["image"], batch["mask"]
+        img, mask = batch
         img = img.float()
         mask = mask.long()
 
@@ -38,10 +38,14 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         return loss_val
 
     def validation_step(self, batch, batch_idx):
-        img, mask = batch["image"], batch["mask"]
+        img, mask = batch
         img = img.float()
         mask = mask.long()
         out = self(img)
+
+        print(out.shape)
+        print(mask.shape)
+
         loss_val = F.cross_entropy(out, mask, ignore_index=250)
 
         if batch_idx == 0:

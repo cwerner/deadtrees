@@ -13,6 +13,7 @@ import pl_bolts
 import pytorch_lightning as pl
 import torch
 from deadtrees.callbacks.checkpoint import checkpoint_callback
+from deadtrees.data.deadtreedata import WDSDeadtreesDataModule
 from deadtrees.loss.tversky.binary import BinaryTverskyLossV2
 from deadtrees.utils import get_env, load_envs
 from hydra.utils import instantiate
@@ -23,6 +24,9 @@ warnings.simplefilter(action="ignore", category=UserWarning)
 
 logger = logging.getLogger(__name__)
 
+
+# TODO: Check why this is necessary!
+torch.backends.cudnn.benchmark = False
 
 # Load environment variables
 load_envs()
@@ -37,11 +41,12 @@ def main(cfg: DictConfig) -> pl.Trainer:
     logger.info(f"Training with the following config:\n{OmegaConf.to_yaml(cfg)}")
 
     network = instantiate(cfg.network, cfg.train)
-    data = instantiate(cfg.data)
-    data.setup(
-        data_dir=get_env("TRAIN_DATASET_PATH"),
-        reduce=5000,
+    # data = instantiate(cfg.data, data_dir=get_env("TRAIN_DATASET_PATH"))
+
+    data = WDSDeadtreesDataModule(
+        get_env("TRAIN_DATASET_PATH"), "train-balanced-short-000*"
     )
+    data.setup()
 
     trainer_logger = instantiate(cfg.logger) if "logger" in cfg else True
     trainer = pl.Trainer(
@@ -49,6 +54,7 @@ def main(cfg: DictConfig) -> pl.Trainer:
         logger=trainer_logger,
         gpus=1,
         precision=16,
+        val_check_interval=100,
         # auto_lr_find=True,
         max_epochs=30,
         checkpoint_callback=checkpoint_callback,
