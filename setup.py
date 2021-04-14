@@ -1,4 +1,5 @@
 import sys
+from itertools import chain
 
 from deadtrees import logger
 from deadtrees.constants import HOME_HTML, MODEL_CHECKPOINT_PATH, PACKAGE_DIR
@@ -11,6 +12,15 @@ if not MODEL_CHECKPOINT_PATH.exists():
         # logger.error("can't build a non-development package with no model")
         # raise FileNotFoundError(MODEL_CHECKPOINT_PATH)
         pass
+
+# extra package dependencies
+EXTRAS = {
+    "train": ["wandb"],
+    "preprocess": ["gdal", "pygeos"],
+}
+EXTRAS["all"] = [i for i in chain.from_iterable(EXTRAS.values())]
+
+
 setup(
     name="deadtrees",
     version=__version__,
@@ -23,15 +33,18 @@ setup(
         "fastapi",
         "hydra-core",
         "pydantic",
-        "torch",
-        "pytorch-lightning",
-        "pytorch-lightning-bolts",
+        "torch>=1.8.1",
+        "torchvision>=0.9.1",
+        "pytorch-lightning>=1.2.7",
+        "pytorch-lightning-bolts>=0.3.2",
         "rioxarray",
         "tqdm",
-        "webdataset",
+        "webdataset @ git+https://github.com/tmbdev/webdataset#egg=webdataset",
         "xarray",
     ],
-    extras_require={"train": ["wandb"], "preprocess": ["gdal", "pygeos"]},
+    # install in editable mode: pip install -e ".[train,preprocess]" or
+    #                           pip install -e ".[all]"
+    extras_require=EXTRAS,
     entry_points={
         "demo": [
             "deadtrees=deadtrees.__main__:main",
