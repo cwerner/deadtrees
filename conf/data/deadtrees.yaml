@@ -1,7 +1,7 @@
 # @package _global_
 data:
   _target_: deadtrees.data.deadtreedata.DeadtreesDataModule
-  df_file: subtile_stats.csv
+  pattern: "train-balanced-short-000*.tar"
   train_dataloader_conf:
     batch_size: 8
     num_workers: 4

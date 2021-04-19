@@ -1,13 +1,12 @@
 import logging
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Dict, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from deadtrees.data.deadtreedata import DeadtreeDatasetConfig
 from matplotlib.offsetbox import AnchoredText
-from skimage.io import concatenate_images, imread, imshow
-from skimage.morphology import label
-from skimage.transform import resize
+from skimage.io import imread
 
 plt.style.use("ggplot")
 
@@ -54,8 +53,7 @@ def show(
 
     subplot_size = 4  # plt in inches
 
-    # n_samples = n_samples if len(x) > n_samples else len(x)
-    n_samples = len(x) if not n_samples or len(x) > n_samples else n_samples
+    n_samples = len(x) if not n_samples else n_samples
 
     fig_size_x = subplot_size * (len(items) + 1)
     fig_size_y = subplot_size * n_samples
@@ -72,9 +70,10 @@ def show(
     if len(ax.shape) == 1:
         ax = ax[np.newaxis, :]
 
-    for i in range(n_samples):
-        rgb = np.array(x[i].permute(1, 2, 0) * 255, dtype="uint8")
+    MEAN, STD = DeadtreeDatasetConfig.mean, DeadtreeDatasetConfig.std
 
+    for i in range(n_samples):
+        rgb = np.array((x[i].permute(1, 2, 0) * STD + MEAN) * 255, dtype="uint8")
         mask = np.array(y[i].unsqueeze(dim=0).permute(1, 2, 0))
         mask2 = np.array(np.where(mask == 1, 1, 0.66) * 255, dtype="uint8")
         combo = np.dstack([rgb, mask2])
@@ -82,7 +81,7 @@ def show(
         ax[i, 0].imshow(rgb)
 
         if stats:
-            txt = f"DTF: {stats['frac'][i]:.2f} [%]"
+            txt = f"DTF: {stats[i]['frac']:.2f} [%]"
             anchored_text = AnchoredText(
                 txt, loc=2, prop=dict(fontsize=10, color="purple")
             )
@@ -106,7 +105,7 @@ def show(
 
     for i in range(n_samples):
         if stats:
-            ax[i, 0].set_ylabel(stats["filename"][i], fontsize=10)
+            ax[i, 0].set_ylabel(stats[i]["file"], fontsize=10)
         else:
             ax[i, 0].set_ylabel(f"Sample {i}")
 

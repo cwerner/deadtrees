@@ -1,204 +1,137 @@
+import io
 import logging
 import math
+from functools import partial
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import List, Optional
 
+import albumentations as A
 import webdataset as wds
+from albumentations.pytorch import ToTensorV2
 
 import numpy as np
 import pandas as pd
+import PIL
 import pytorch_lightning as pl
-import skimage
-import torch
-from deadtrees.data.transforms import (  # Rescale - rescale disabled for now/ messes with types
-    ToTensor,
-)
-from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
-from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
+from torch.utils.data import DataLoader
 
 logger = logging.getLogger(__name__)
 
 
-TILE_SIZE = 512
-FRACTIONS = [0.7, 0.2, 0.1]
-DF_FILE = "subtile_stats.csv"
+# NOTE: mean ans std computed on train shards
+class DeadtreeDatasetConfig:
+    """Dataset configuration"""
+
+    mean = np.array([0.3041, 0.3329, 0.2860])
+    std = np.array([0.1799, 0.1491, 0.1282])
+    tile_size = 512
+    fractions = [0.7, 0.2, 0.1]
 
 
-def split_df(
-    df: pd.DataFrame,
-    fractions: List[float] = FRACTIONS,
-    refcol: str = "deadtreepercent",
-    no_zeros: bool = True,
-    reduce: Optional[int] = None,
-) -> List[pd.DataFrame]:
-    """
-    Split dataset into train, val, test fractions while preserving
-    the original mean ratio of deadtree pixels for all three buckets
-    """
+def split_shards(original_list, split_fractions):
+    """Distribute shards into train/ valid/ test sets according to provided split ratios"""
 
-    all_fractions = sum(fractions)
-    status = [0] * len(fractions)
+    assert np.isclose(
+        sum(split_fractions), 1.0
+    ), f"Split fractions do not sum to 1: {sum(split_fractions)}"
 
-    df = df.sort_values(by=refcol, ascending=False).reset_index(drop=True)
+    original_list = [str(x) for x in sorted(original_list)]
 
-    if no_zeros:
-        logger.warning("Don't use all-zero tiles")
-        df = df[df[refcol] > 0.0]
-
-    if reduce:
-        logger.warning(f"Sample Data reduced to top {reduce} samples")
-
-        df = df.head(reduce)
-
-    df["class"] = -1
-
-    idx = np.argmin(status)
-
-    for rid, row in df.iterrows():
-        idx = np.argmin(status)
-        status[idx] += all_fractions / fractions[idx]
-        df.loc[rid, "class"] = idx
-
-    gdf = df.groupby("class")
-    # DISABLED, since we want some tiles with actual deadtrees for inspection first
-    # return [[f for f in gdf.get_group(x).sort_values(by='subtile')['subtile']] for x in gdf.groups]
-    return [[f for f in gdf.get_group(x)["subtile"]] for x in gdf.groups]
-
-
-class DeadtreeDataset(Dataset):
-    """Deadtree dataset."""
-
-    def __init__(
-        self,
-        files: List[Union[Path, str]],
-        data_dir: Union[Path, str],
-        transform: Optional[Any] = None,
-    ):
-        """
-        Args:
-            csv_file (string): Path to the csv file with file.
-            data_dir (string): Directory with all the images.
-            transform (callable, optional): Optional transform to be applied
-                on a sample.
-        """
-        self.subtiles = pd.DataFrame({"filename": files})
-        data_dir = to_absolute_path(str(data_dir))
-
-        self.data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.subtiles)
-
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
-        img_name = self.data_dir / "image" / self.subtiles.iloc[idx, 0]
-        img_mask_name = self.data_dir / "mask" / self.subtiles.iloc[idx, 0]
-
-        image = skimage.io.imread(img_name)
-        mask = skimage.io.imread(img_mask_name)
-
-        stats = {
-            "filename": img_name.name,
-            "frac": round((float(mask.sum()) / mask.size) * 100, 2),
-        }
-
-        sample = {"image": image, "mask": mask, "stats": stats}
-
-        if self.transform:
-            sample = self.transform(sample)
-
-        return sample
-
-
-class DeadtreesDataModule(pl.LightningDataModule):
-    def __init__(
-        self,
-        data_dir,
-        df_file,
-        train_dataloader_conf: Optional[DictConfig] = None,
-        val_dataloader_conf: Optional[DictConfig] = None,
-        test_dataloader_conf: Optional[DictConfig] = None,
-    ):
-        super().__init__()
-        self.data_dir = data_dir
-        self.df_file = to_absolute_path(df_file)
-
-        self.train_dataloader_conf = train_dataloader_conf or OmegaConf.create()
-        self.val_dataloader_conf = val_dataloader_conf or OmegaConf.create()
-        self.test_dataloader_conf = test_dataloader_conf or OmegaConf.create()
-
-        self.transform = transforms.Compose(
-            [
-                # Rescale(TILE_SIZE),
-                ToTensor()
-            ]
-        )
-
-    def setup(
-        self,
-        data_dir: Optional[Union[Path, str]] = None,
-        df_file: Optional[pd.DataFrame] = None,
-        split: List[float] = FRACTIONS,
-        reduce: Optional[int] = None,
-    ) -> None:
-        DATA_PATH = data_dir or self.data_dir
-        DF_FILE = df_file or self.df_file
-
-        df = pd.read_csv(DF_FILE)
-        train, val, test = split_df(df, split, reduce=reduce)
-
-        self.train_data = DeadtreeDataset(train, DATA_PATH, transform=self.transform)
-        self.valid_data = DeadtreeDataset(val, DATA_PATH, transform=self.transform)
-        self.test_data = DeadtreeDataset(test, DATA_PATH, transform=self.transform)
-
-    def train_dataloader(self) -> DataLoader:
-        return DataLoader(self.train_data, shuffle=True, **self.train_dataloader_conf)
-
-    def val_dataloader(self) -> DataLoader:
-        return DataLoader(self.valid_data, shuffle=False, **self.val_dataloader_conf)
-
-    def test_dataloader(self) -> DataLoader:
-        return DataLoader(self.test_data, shuffle=False, **self.test_dataloader_conf)
-
-
-def split_shards(original_list, weight_list):
     sublists = []
     prev_index = 0
-    for weight in weight_list:
+    for weight in split_fractions:
         next_index = prev_index + math.ceil((len(original_list) * weight))
 
-        sublists.append([str(x) for x in original_list[prev_index:next_index]])
+        sublists.append(original_list[prev_index:next_index])
         prev_index = next_index
+
+    if not all(len(x) > 0 for x in sublists):
+        logger.warning("Unexpected shard distribution encountered - trying to fix this")
+        if len(split_fractions) == 3:
+            original_list
+            if len(sublists[0]) > 2:
+                sublists[0] = original_list[:-2]
+                sublists[1] = original_list[-2:-1]
+                sublists[2] = original_list[-1:]
+            else:
+                raise ValueError(
+                    f"Not enough shards (#{len(original_list)}) for new distribution"
+                )
+
+        elif len(split_fractions) == 2:
+            sublists[0] = original_list[:-1]
+            sublists[1] = original_list[-1:]
+        else:
+            raise ValueError
+        logger.warning(f"New shard split: {sublists}")
+
+    if len(sublists) != 3:
+        logger.warning("No test shards specified")
+        sublists.append(None)
 
     return sublists
 
 
-def identity(x):
-    return x
+def image_decoder(data):
+    with io.BytesIO(data) as stream:
+        img = PIL.Image.open(stream)
+        img.load()
+        img = img.convert("RGB")
+    return np.asarray(img)
 
 
-# normalize = transforms.Normalize(
-#     mean=[0.485, 0.456, 0.406],
-#     std=[0.229, 0.224, 0.225])
+def mask_decoder(data):
+    with io.BytesIO(data) as stream:
+        img = PIL.Image.open(stream)
+        img.load()
+        img = img.convert("L")
+    return np.asarray(img)
 
-# preproc = transforms.Compose([
-#     transforms.ToTensor(),
-#     normalize,
-# ])
 
-preproc = transforms.Compose(
+def sample_decoder(sample, img_suffix="rgb.png", msk_suffix="msk.png"):
+    """Decode data triplet (image, mask stats) from sharded datastore"""
+
+    assert img_suffix in sample, "Wrong image suffix provided"
+    sample[img_suffix] = image_decoder(sample[img_suffix])
+    if "txt" in sample:
+        sample["txt"] = {"file": sample["__key__"], "frac": float(sample["txt"])}
+    if msk_suffix in sample:
+        sample[msk_suffix] = mask_decoder(sample[msk_suffix])
+    return sample
+
+
+def inv_normalize(x):
+    return lambda x: x * DeadtreeDatasetConfig.std + DeadtreeDatasetConfig.mean
+
+
+train_transform = A.Compose(
     [
-        transforms.ToTensor(),
+        A.VerticalFlip(p=0.5),
+        A.HorizontalFlip(p=0.5),
+        A.RandomRotate90(p=0.5),
+        A.Normalize(mean=DeadtreeDatasetConfig.mean, std=DeadtreeDatasetConfig.std),
+        ToTensorV2(),
+    ]
+)
+
+val_transform = A.Compose(
+    [
+        A.Normalize(mean=DeadtreeDatasetConfig.mean, std=DeadtreeDatasetConfig.std),
+        ToTensorV2(),
     ]
 )
 
 
-class WDSDeadtreesDataModule(pl.LightningDataModule):
+def transform(sample, transform_func=None):
+    if transform_func:
+        transformed = transform_func(image=sample["image"], mask=sample["mask"])
+        sample["image"] = transformed["image"]
+        sample["mask"] = transformed["mask"]
+    return sample
+
+
+class DeadtreesDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir,
@@ -209,54 +142,81 @@ class WDSDeadtreesDataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.data_shards = sorted(Path(data_dir).glob(pattern))
-        print(Path(data_dir))
-        print(pattern)
-        print(self.data_shards)
         self.train_dataloader_conf = train_dataloader_conf or OmegaConf.create()
         self.val_dataloader_conf = val_dataloader_conf or OmegaConf.create()
         self.test_dataloader_conf = test_dataloader_conf or OmegaConf.create()
 
-        self.transform = transforms.Compose(
-            [
-                # Rescale(TILE_SIZE),
-                ToTensor()
-            ]
-        )
-
     def setup(
         self,
-        split: List[float] = FRACTIONS,
+        split_fractions: List[float] = DeadtreeDatasetConfig.fractions,
     ) -> None:
 
-        train, valid, test = split_shards(self.data_shards, split)
+        # TODO:
+        # - determine shuffle interval from shard
+        # - determine dataset length
+        # - read batch size from config
+
+        train_shards, valid_shards, test_shards = split_shards(
+            self.data_shards, split_fractions
+        )
+
         self.train_data = (
-            wds.WebDataset(train, length=int(1e9))
-            .decode("pil")
-            .rename(image="rgb.png", mask="msk.png")
-            .to_tuple("image", "mask")
-            .map_tuple(transforms.ToTensor(), transforms.ToTensor())
+            wds.WebDataset(
+                train_shards, length=14 * 128
+            )  # // self.train_dataloader_conf["batch_size"])
+            .shuffle(128)
+            .map(sample_decoder)
+            .rename(image="rgb.png", mask="msk.png", stats="txt")
+            .map(partial(transform, transform_func=train_transform))
+            .to_tuple("image", "mask", "stats")
         )
 
         self.val_data = (
-            wds.WebDataset(valid, length=int(1e9))
-            .decode("pil")
-            .rename(image="rgb.png", mask="msk.png")
-            .to_tuple("image", "mask")
-            .map_tuple(transforms.ToTensor(), transforms.ToTensor())
+            wds.WebDataset(
+                valid_shards, length=4 * 128
+            )  # // self.val_dataloader_conf["batch_size"])
+            .shuffle(0)
+            .map(sample_decoder)
+            .rename(image="rgb.png", mask="msk.png", stats="txt")
+            .map(partial(transform, transform_func=val_transform))
+            .to_tuple("image", "mask", "stats")
         )
 
-        self.test_data = (
-            wds.Dataset(test)
-            .rename(image="rgb.png", mask="msk.png")
-            .decode("pil", handler=wds.warn_and_continue)
-            .map_dict(image=preproc, mask=preproc)
-        )
+        if test_shards:
+            self.test_data = (
+                wds.WebDataset(
+                    test_shards, length=2 * 128
+                )  # // self.test_dataloader_conf["batch_size"])
+                .shuffle(0)
+                .map(sample_decoder)
+                .rename(image="rgb.png")
+                .map(partial(transform, transform_func=val_transform))
+                .to_tuple("image")
+            )
 
     def train_dataloader(self) -> DataLoader:
-        return DataLoader(self.train_data, **self.train_dataloader_conf)
+        return DataLoader(
+            self.train_data.batched(
+                self.train_dataloader_conf["batch_size"], partial=False
+            ),
+            batch_size=None,
+            num_workers=self.train_dataloader_conf["num_workers"],
+        )
 
     def val_dataloader(self) -> DataLoader:
-        return DataLoader(self.val_data, **self.val_dataloader_conf)
+        return DataLoader(
+            self.val_data.batched(
+                self.val_dataloader_conf["batch_size"], partial=False
+            ),
+            batch_size=None,
+            num_workers=self.val_dataloader_conf["num_workers"],
+        )
 
     def test_dataloader(self) -> DataLoader:
-        return DataLoader(self.test_data, **self.test_dataloader_conf)
+        return DataLoader(
+            self.test_data.batched(
+                self.test_dataloader_conf["batch_size"], partial=False
+            ),
+            batch_size=None,
+            num_workers=self.test_dataloader_conf["num_workers"],
+        )

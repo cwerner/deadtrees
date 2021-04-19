@@ -7,13 +7,10 @@ import warnings
 from pathlib import Path
 
 import hydra
-import numpy as np
-import pandas as pd
-import pl_bolts
 import pytorch_lightning as pl
 import torch
 from deadtrees.callbacks.checkpoint import checkpoint_callback
-from deadtrees.data.deadtreedata import WDSDeadtreesDataModule
+from deadtrees.data.deadtreedata import DeadtreesDataModule
 from deadtrees.loss.tversky.binary import BinaryTverskyLossV2
 from deadtrees.utils import get_env, load_envs
 from hydra.utils import instantiate
@@ -41,10 +38,9 @@ def main(cfg: DictConfig) -> pl.Trainer:
     logger.info(f"Training with the following config:\n{OmegaConf.to_yaml(cfg)}")
 
     network = instantiate(cfg.network, cfg.train)
-    # data = instantiate(cfg.data, data_dir=get_env("TRAIN_DATASET_PATH"))
 
-    data = WDSDeadtreesDataModule(
-        get_env("TRAIN_DATASET_PATH"), "train-balanced-short-000*"
+    data = instantiate(
+        cfg.data, data_dir=get_env("TRAIN_DATASET_PATH"), pattern=cfg.data.pattern
     )
     data.setup()
 
@@ -54,7 +50,7 @@ def main(cfg: DictConfig) -> pl.Trainer:
         logger=trainer_logger,
         gpus=1,
         precision=16,
-        val_check_interval=100,
+        # val_check_interval=128,
         # auto_lr_find=True,
         max_epochs=30,
         checkpoint_callback=checkpoint_callback,

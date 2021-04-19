@@ -25,7 +25,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         self.save_hyperparameters()  # type: ignore
 
     def training_step(self, batch, batch_idx):
-        img, mask = batch
+        img, mask, stats = batch
         img = img.float()
         mask = mask.long()
 
@@ -38,46 +38,17 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         return loss_val
 
     def validation_step(self, batch, batch_idx):
-        img, mask = batch
+        img, mask, stats = batch
         img = img.float()
         mask = mask.long()
         out = self(img)
 
-        print(out.shape)
-        print(mask.shape)
-
         loss_val = F.cross_entropy(out, mask, ignore_index=250)
 
         if batch_idx == 0:
-            stats = batch["stats"] if "stats" in batch else None
             sample_chart = show(
                 x=img.cpu(), y=mask.cpu(), y_hat=out.cpu(), n_samples=4, stats=stats
             )
-
-            # TODO: use native wandb semantic segmentation UI
-
-            # class_labels = {
-            #     1: "deadtrees",
-            # }
-
-            # img = np.array(img[0].cpu().permute(1, 2, 0) * 255, dtype='uint8')
-            # msk = np.array(mask[0].squeeze().cpu())
-            # prd = np.array(out[0].squeeze().cpu())
-
-            # logger.info(prd.shape)
-
-            # xxx = wandb.Image(img, masks={
-            #     "predictions": {
-            #         "mask_data": prd,
-            #         "class_labels": class_labels
-            #         },
-            #     "ground_truth": {
-            #         "mask_data": msk,
-            #         "class_labels": class_labels
-            #         },
-            #     },
-            # )
-            # self.logger.experiment.log({'native': xxx})
 
             self.logger.experiment.log(
                 {
