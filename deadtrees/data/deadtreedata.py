@@ -10,7 +10,6 @@ import webdataset as wds
 from albumentations.pytorch import ToTensorV2
 
 import numpy as np
-import pandas as pd
 import PIL
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
@@ -107,6 +106,7 @@ def inv_normalize(x):
 
 train_transform = A.Compose(
     [
+        # A.Resize(256,256),
         A.VerticalFlip(p=0.5),
         A.HorizontalFlip(p=0.5),
         A.RandomRotate90(p=0.5),
@@ -117,6 +117,7 @@ train_transform = A.Compose(
 
 val_transform = A.Compose(
     [
+        # A.Resize(256,256),
         A.Normalize(mean=DeadtreeDatasetConfig.mean, std=DeadtreeDatasetConfig.std),
         ToTensorV2(),
     ]
@@ -151,20 +152,24 @@ class DeadtreesDataModule(pl.LightningDataModule):
         split_fractions: List[float] = DeadtreeDatasetConfig.fractions,
     ) -> None:
 
-        # TODO:
-        # - determine shuffle interval from shard
-        # - determine dataset length
-        # - read batch size from config
-
         train_shards, valid_shards, test_shards = split_shards(
             self.data_shards, split_fractions
         )
 
+        # determine the length of the dataset
+        shard_size = sum(1 for _ in DataLoader(wds.WebDataset(train_shards[0])))
+        logger.info(
+            f"Shard size: {shard_size} (estimate base on file: {train_shards[0]})"
+        )
+
         self.train_data = (
             wds.WebDataset(
-                train_shards, length=14 * 128
-            )  # // self.train_dataloader_conf["batch_size"])
-            .shuffle(128)
+                train_shards,
+                length=len(train_shards)
+                * shard_size
+                // self.train_dataloader_conf["batch_size"],
+            )
+            .shuffle(shard_size)
             .map(sample_decoder)
             .rename(image="rgb.png", mask="msk.png", stats="txt")
             .map(partial(transform, transform_func=train_transform))
@@ -173,8 +178,11 @@ class DeadtreesDataModule(pl.LightningDataModule):
 
         self.val_data = (
             wds.WebDataset(
-                valid_shards, length=4 * 128
-            )  # // self.val_dataloader_conf["batch_size"])
+                valid_shards,
+                length=len(valid_shards)
+                * shard_size
+                // self.val_dataloader_conf["batch_size"],
+            )
             .shuffle(0)
             .map(sample_decoder)
             .rename(image="rgb.png", mask="msk.png", stats="txt")
@@ -185,8 +193,11 @@ class DeadtreesDataModule(pl.LightningDataModule):
         if test_shards:
             self.test_data = (
                 wds.WebDataset(
-                    test_shards, length=2 * 128
-                )  # // self.test_dataloader_conf["batch_size"])
+                    test_shards,
+                    length=len(test_shards)
+                    * shard_size
+                    // self.test_dataloader_conf["batch_size"],
+                )
                 .shuffle(0)
                 .map(sample_decoder)
                 .rename(image="rgb.png")
@@ -200,6 +211,7 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 self.train_dataloader_conf["batch_size"], partial=False
             ),
             batch_size=None,
+            pin_memory=True,
             num_workers=self.train_dataloader_conf["num_workers"],
         )
 
@@ -209,6 +221,7 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 self.val_dataloader_conf["batch_size"], partial=False
             ),
             batch_size=None,
+            pin_memory=True,
             num_workers=self.val_dataloader_conf["num_workers"],
         )
 
@@ -218,5 +231,6 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 self.test_dataloader_conf["batch_size"], partial=False
             ),
             batch_size=None,
+            pin_memory=True,
             num_workers=self.test_dataloader_conf["num_workers"],
         )
