@@ -1,18 +1,42 @@
 # source: https://github.com/PyTorchLightning/pytorch-lightning-bolts (Apache2)
 
 import logging
-from argparse import ArgumentParser
 
-import numpy as np
 import pytorch_lightning as pl
 import torch
 import wandb
+from deadtrees.loss.tversky.binary import BinaryTverskyLossV2
 from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
 from pl_bolts.models.vision.unet import UNet
 from torch.nn import functional as F
 
 logger = logging.getLogger(__name__)
+
+
+# Taken from https://github.com/justusschock/dl-utils/blob/master/dlutils/metrics/dice.py
+def binary_dice_coefficient(
+    pred: torch.Tensor, gt: torch.Tensor, thresh: float = 0.5, smooth: float = 1e-7
+) -> torch.Tensor:
+    """
+    computes the dice coefficient for a binary segmentation task
+
+    Args:
+        pred: predicted segmentation (of shape Nx(Dx)HxW)
+        gt: target segmentation (of shape NxCx(Dx)HxW)
+        thresh: segmentation threshold
+        smooth: smoothing value to avoid division by zero
+
+    Returns:
+        torch.Tensor: dice score
+    """
+
+    assert pred.shape == gt.shape
+
+    pred_bool = pred > thresh
+
+    intersec = (pred_bool * gt).float()
+    return 2 * intersec.sum() / (pred_bool.float().sum() + gt.float().sum() + smooth)
 
 
 class SemSegment(UNet, pl.LightningModule):  # type: ignore
@@ -24,30 +48,72 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         super().__init__(**network_conf)
         self.save_hyperparameters()  # type: ignore
 
+        self.binary_tversky_loss = BinaryTverskyLossV2(
+            alpha=1.0 - train_conf["tversky_beta"],
+            beta=train_conf["tversky_beta"],
+        )
+        self.ce_loss = torch.nn.CrossEntropyLoss()
+
+    def get_progress_bar_dict(self):
+        """Hack to remove v_num from progressbar"""
+        tqdm_dict = super().get_progress_bar_dict()
+        if "v_num" in tqdm_dict:
+            del tqdm_dict["v_num"]
+        return tqdm_dict
+
     def training_step(self, batch, batch_idx):
         img, mask, stats = batch
         img = img.float()
         mask = mask.long()
+        pred = self(img)
+        softmaxed_pred = torch.nn.functional.softmax(pred, dim=1)
+        a_max = torch.argmax(softmaxed_pred, dim=1)
 
-        out = self(img)
-        loss_val = F.cross_entropy(out, mask, ignore_index=250)
-        # log_dict = {"train_loss": loss_val}
-        self.log("loss", loss_val)
+        # Calculate losses
+        ce_loss = self.ce_loss(pred, mask)
+        binary_tversky_loss = self.binary_tversky_loss(a_max, mask.unsqueeze(dim=1))
+        total_loss = (ce_loss + binary_tversky_loss) / 2
 
-        # return {'loss': loss_val, 'log': log_dict, 'progress_bar': log_dict}
-        return loss_val
+        # Calculate dice coefficient
+        dice_coeff = binary_dice_coefficient(a_max, mask)
+        accuracy = (a_max == mask).float().mean()
+
+        self.log("train/dice_coeff", dice_coeff, prog_bar=True)
+        self.log("train/accuracy", accuracy, prog_bar=True)
+
+        self.log("train/ce_loss", ce_loss)
+        self.log("train/binary_tversky_loss", binary_tversky_loss)
+        self.log("train/total_loss", total_loss)
+
+        return total_loss
 
     def validation_step(self, batch, batch_idx):
         img, mask, stats = batch
         img = img.float()
         mask = mask.long()
-        out = self(img)
+        pred = self(img)
+        softmaxed_pred = torch.nn.functional.softmax(pred, dim=1)
+        a_max = torch.argmax(softmaxed_pred, dim=1)
 
-        loss_val = F.cross_entropy(out, mask, ignore_index=250)
+        # Calculate losses
+        ce_loss = self.ce_loss(pred, mask)
+        binary_tversky_loss = self.binary_tversky_loss(a_max, mask.unsqueeze(dim=1))
+        total_loss = (ce_loss + binary_tversky_loss) / 2
+
+        # Calculate dice coefficient
+        dice_coeff = binary_dice_coefficient(a_max, mask)
+        accuracy = (a_max == mask).float().mean()
+
+        self.log("val/dice_coeff", dice_coeff)
+        self.log("val/accuracy", accuracy, prog_bar=True)
+
+        self.log("val/ce_loss", ce_loss)
+        self.log("val/binary_tversky_loss", binary_tversky_loss)
+        self.log("val/total_loss", total_loss)
 
         if batch_idx == 0:
             sample_chart = show(
-                x=img.cpu(), y=mask.cpu(), y_hat=out.cpu(), n_samples=4, stats=stats
+                x=img.cpu(), y=mask.cpu(), y_hat=pred.cpu(), n_samples=4, stats=stats
             )
 
             self.logger.experiment.log(
@@ -59,9 +125,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
                 commit=False,
             )
 
-        self.log("val_loss", loss_val)
-
-        return loss_val
+        return total_loss
 
     def configure_optimizers(self):
         opt = torch.optim.Adam(
@@ -70,121 +134,3 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         )
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=10)
         return [opt], [sch]
-
-
-# class SemSegment(pl.LightningModule):
-
-#     def __init__(
-#         self,
-#         lr: float = 0.01,
-#         num_classes: int = 19,
-#         num_layers: int = 5,
-#         features_start: int = 64,
-#         bilinear: bool = False
-#     ):
-#         """
-#         Basic model for semantic segmentation. Uses UNet architecture by default.
-
-#         The default parameters in this model are for the KITTI dataset. Note, if you'd like to use this model as is,
-#         you will first need to download the KITTI dataset yourself. You can download the dataset `here.
-#         <http://www.cvlibs.net/datasets/kitti/eval_semseg.php?benchmark=semantics2015>`_
-
-#         Implemented by:
-
-#             - `Annika Brundyn <https://github.com/annikabrundyn>`_
-
-#         Args:
-#             num_layers: number of layers in each side of U-net (default 5)
-#             features_start: number of features in first layer (default 64)
-#             bilinear: whether to use bilinear interpolation (True) or transposed convolutions (default) for upsampling.
-#             lr: learning (default 0.01)
-#         """
-#         super().__init__()
-
-#         self.num_classes = num_classes
-#         self.num_layers = num_layers
-#         self.features_start = features_start
-#         self.bilinear = bilinear
-#         self.lr = lr
-
-#         self.net = UNet(
-#             num_classes=num_classes,
-#             num_layers=self.num_layers,
-#             features_start=self.features_start,
-#             bilinear=self.bilinear
-#         )
-
-#     def forward(self, x):
-#         return self.net(x)
-
-#     def training_step(self, batch, batch_nb):
-#         img, mask = batch
-#         img = img.float()
-#         mask = mask.long()
-#         out = self(img)
-#         loss_val = F.cross_entropy(out, mask, ignore_index=250)
-#         log_dict = {'train_loss': loss_val}
-#         return {'loss': loss_val, 'log': log_dict, 'progress_bar': log_dict}
-
-#     def validation_step(self, batch, batch_idx):
-#         img, mask = batch
-#         img = img.float()
-#         mask = mask.long()
-#         out = self(img)
-#         loss_val = F.cross_entropy(out, mask, ignore_index=250)
-#         return {'val_loss': loss_val}
-
-#     def validation_epoch_end(self, outputs):
-#         loss_val = torch.stack([x['val_loss'] for x in outputs]).mean()
-#         log_dict = {'val_loss': loss_val}
-#         return {'log': log_dict, 'val_loss': log_dict['val_loss'], 'progress_bar': log_dict}
-
-#     def configure_optimizers(self):
-#         opt = torch.optim.Adam(self.net.parameters(), lr=self.lr)
-#         sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=10)
-#         return [opt], [sch]
-
-#     @staticmethod
-#     def add_model_specific_args(parent_parser):
-#         parser = ArgumentParser(parents=[parent_parser], add_help=False)
-#         parser.add_argument("--lr", type=float, default=0.01, help="adam: learning rate")
-#         parser.add_argument("--num_layers", type=int, default=5, help="number of layers on u-net")
-#         parser.add_argument("--features_start", type=float, default=64, help="number of features in first layer")
-#         parser.add_argument(
-#             "--bilinear",
-#             action='store_true',
-#             default=False,
-#             help="whether to use bilinear interpolation or transposed"
-#         )
-
-#         return parser
-
-
-# def cli_main():
-#     from pl_bolts.datamodules import KittiDataModule
-
-#     pl.seed_everything(1234)
-
-#     parser = ArgumentParser()
-#     # trainer args
-#     parser = pl.Trainer.add_argparse_args(parser)
-#     # model args
-#     parser = SemSegment.add_model_specific_args(parser)
-#     # datamodule args
-#     parser = KittiDataModule.add_argparse_args(parser)
-
-#     args = parser.parse_args()
-
-#     # data
-#     dm = KittiDataModule(args.data_dir).from_argparse_args(args)
-
-#     # model
-#     model = SemSegment(**args.__dict__)
-
-#     # train
-#     trainer = pl.Trainer().from_argparse_args(args)
-#     trainer.fit(model, datamodule=dm)
-
-
-# if __name__ == '__main__':
-#     cli_main()
