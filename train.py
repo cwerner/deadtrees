@@ -10,8 +10,6 @@ import hydra
 import pytorch_lightning as pl
 import torch
 from deadtrees.callbacks.checkpoint import checkpoint_callback
-from deadtrees.data.deadtreedata import DeadtreesDataModule
-from deadtrees.loss.tversky.binary import BinaryTverskyLossV2
 from deadtrees.utils import get_env, load_envs
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
@@ -50,9 +48,10 @@ def main(cfg: DictConfig) -> pl.Trainer:
         logger=trainer_logger,
         gpus=1,
         precision=16,
-        # val_check_interval=128,
+        val_check_interval=100,
+        terminate_on_nan=True,
         # auto_lr_find=True,
-        max_epochs=30,
+        max_epochs=20,
         checkpoint_callback=checkpoint_callback,
     )
 

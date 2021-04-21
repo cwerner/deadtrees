@@ -1,6 +1,7 @@
 train:
-  learning_rate: 0.001
+  learning_rate: 0.0003
   run_test: false
+  tversky_beta: 0.7  # beta: 0.3
 
 pl_trainer: {}
 
