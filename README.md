@@ -19,7 +19,8 @@ Map dead trees from ortho photos. A Unet (semantic segmentation model) is traine
 git clone https://github.com/cwerner/deadtrees
 cd deadtrees
 
-# [OPTIONAL] create virtual environment (using venve, pyenv, etc.) and activate it
+# [OPTIONAL] create virtual environment (using venve, pyenv, etc.) 
+# and activate it
 
 # install requirements (basic requirements):
 pip install -e . 
@@ -27,7 +28,8 @@ pip install -e .
 # [OPTIONAL] install extra requirements for training:
 pip install -e ".[train]"
 
-# [OPTIONAL] install extra requirements to preprocess the raw data (instead of reading preprocessed data from S3):
+# [OPTIONAL] install extra requirements to preprocess the raw data
+# (instead of reading preprocessed data from S3):
 pip install -e ".[preprocess]"
 
 # [ALTERNATIVE] install all subpackages:
