@@ -1,11 +1,65 @@
 train:
-  learning_rate: 0.0003
+  learning_rate: 0.00015
   run_test: false
-  tversky_beta: 0.7  # beta: 0.3
+  tversky_beta: 0.7  # alpha: 0.3
 
-pl_trainer: {}
+trainer:
+  gpus: 1
+  min_epochs: 1
+  max_epochs: 10
+  precision: 16
+  progress_bar_refresh_rate: 10
+  terminate_on_nan: True
 
 defaults:
-  - data: deadtrees
-  - network: default
-  - logger: wandb
+    - callbacks: default_callbacks
+    - datamodule: deadtrees
+    - model: default
+    - logger: wandb
+
+    # enable color logging
+    - override hydra/hydra_logging: colorlog
+    - override hydra/job_logging: colorlog
+
+# path to original working directory
+# hydra hijacks working directory by changing it to the current log directory,
+# so it's useful to have this path as a special variable
+# learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
+work_dir: ${hydra:runtime.cwd}
+
+
+# path to folder with data
+data_dir: ${work_dir}/data/
+
+
+# use `python run.py debug=true` for easy debugging!
+# this will run 1 train, val and test loop with only 1 batch
+# equivalent to running `python run.py trainer.fast_dev_run=true`
+# (this is placed here just for easier access from command line)
+debug: False
+
+
+# pretty print config at the start of the run using Rich library
+print_config: True
+
+
+# disable python warnings if they annoy you
+disable_warnings: True
+
+
+hydra:
+    # output paths for hydra logs
+    run:
+        dir: logs/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    sweep:
+        dir: logs/multiruns/${now:%Y-%m-%d_%H-%M-%S}
+        subdir: ${hydra.job.num}
+
+    job:
+        # you can set here environment variables that are universal for all users
+        # for system specific variables (like data paths) it's better to use .env file!
+        env_set:
+            # currently there are some issues with running sweeps alongside wandb
+            # https://github.com/wandb/client/issues/1314
+            # this env var fixes that
+            WANDB_START_METHOD: thread
