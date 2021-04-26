@@ -115,15 +115,17 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
             sample_chart = show(
                 x=img.cpu(), y=mask.cpu(), y_hat=pred.cpu(), n_samples=4, stats=stats
             )
-
-            self.logger.experiment.log(
-                {
-                    "sample": wandb.Image(
-                        sample_chart, caption=f"Sample-{self.trainer.global_step}"
+            for logger in self.logger:
+                if isinstance(logger, pl.loggers.wandb.WandbLogger):
+                    logger.experiment.log(
+                        {
+                            "sample": wandb.Image(
+                                sample_chart,
+                                caption=f"Sample-{self.trainer.global_step}",
+                            )
+                        },
+                        commit=False,
                     )
-                },
-                commit=False,
-            )
 
         return total_loss
 
