@@ -39,6 +39,7 @@ setup(
         "torchvision>=0.9.1",
         "pytorch-lightning>=1.2.7",
         "pytorch-lightning-bolts>=0.3.2",
+        "rich",
         "rioxarray",
         "tqdm",
         "webdataset @ git+https://github.com/tmbdev/webdataset#egg=webdataset",
