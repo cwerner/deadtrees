@@ -1,0 +1,7 @@
+# @package _group_
+_target_: deadtrees.network.segmodel.SemSegment
+
+network_conf:
+  num_layers: 5
+  features_start: 64
+  bilinear: False
