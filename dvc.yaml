@@ -1,43 +1,50 @@
 # dvc project pipeline
 
+# year 2017 inference only (disabled for now)
 stages:
   createtiles:
-    cmd: >-
-      mkdir data/processed;
-      gdal_retile.py 
-      -csv locations.csv 
-      -v -ps ${source_dim} ${source_dim}
-      -co "TILED=YES" -co "COMPRESS=LZW" 
-      -targetDir data/processed 
-      data/raw/tif_ortho_2019.tif
-    deps:
-    - data/raw/tif_ortho_2019.tif
-    params:
-    - source_dim
-    outs:
-    - data/processed
+    foreach:
+    #  - 2017
+      - 2019
+    do:
+      cmd: >-
+        mkdir data/processed;
+        gdal_retile.py 
+        -csv locations.csv 
+        -v -ps ${source_dim} ${source_dim}
+        -co "TILED=YES" -co "COMPRESS=LZW" 
+        -targetDir data/processed.images.${item} 
+        data/raw/ortho_${item}_ESPG3044.tif
+      deps:
+      - data/raw/ortho_${item}_ESPG3044.tif
+      params:
+      - source_dim
+      outs:
+      - data/processed.images.${item}
 
   createmasks:
     cmd: >-
-      python createmasks.py data/processed data/processed.masks data/raw/dead_treed_proj.shp
+      python createmasks.py 
+      --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
+      data/processed.images.2019 
+      data/processed.masks.2019 
+      data/raw/shapefiles/deadtrees/deadtrees.shp
     deps:
-    - data/processed
-    - data/raw/dead_treed_proj.shp
-    - data/raw/dead_treed_proj.shx
-    - data/raw/dead_treed_proj.dbf
-    - data/raw/dead_treed_proj.prj
+    - data/processed.images.2019
+    - data/raw/shapefiles/deadtrees
+    - data/raw/shapefiles/deadtrees_area
     outs:
-    - data/processed.masks 
+    - data/processed.masks.2019
 
   createdataset:
     cmd: >-
-      python createdataset.py data/processed data/processed.masks data/dataset 
+      python createdataset.py data/processed.images.2019 data/processed.masks.2019 data/dataset 
       --source_dim ${source_dim}
       --tile_size ${createdataset.tile_size}
       --format ${file_type}
     deps:
-    - data/processed
-    - data/processed.masks 
+    - data/processed.images.2019
+    - data/processed.masks.2019 
     params:
     - source_dim
     - createdataset.tile_size
@@ -54,8 +61,10 @@ stages:
       data/dataset/train_balanced 
       data/dataset/train_balanced_short
       --format ${file_type}
+      --tmp-dir ./tmp
     deps:
     - data/dataset/train
+    - data/dataset/stats.csv
     params:
     - file_type
     outs:

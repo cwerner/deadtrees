@@ -1,56 +1,53 @@
 schema: '2.0'
 stages:
-  createtiles:
+  createtiles@2019:
     cmd: mkdir data/processed; gdal_retile.py  -csv locations.csv  -v -ps 8192 8192
-      -co "TILED=YES" -co "COMPRESS=LZW"  -targetDir data/processed  data/raw/tif_ortho_2019.tif
+      -co "TILED=YES" -co "COMPRESS=LZW"  -targetDir data/processed.images.2019  data/raw/ortho_2019_ESPG3044.tif
     deps:
-    - path: data/raw/tif_ortho_2019.tif
-      md5: f29b9345665f25e7465eafa3bd6f2f49
-      size: 353002145755
+    - path: data/raw/ortho_2019_ESPG3044.tif
+      md5: 746e66cb751ca75c9497920f53cdc0b8
+      size: 381359748231
     params:
       params.yaml:
         source_dim: 8192
     outs:
-    - path: data/processed
-      md5: 47072b35402c0e5113b1c912a47c7bc8.dir
-      size: 169238409104
-      nfiles: 1839
+    - path: data/processed.images.2019
+      md5: a3c48148cd75adc9b069207edf27b637.dir
+      size: 169321666330
+      nfiles: 1925
   createmasks:
-    cmd: python createmasks.py data/processed data/processed.masks data/raw/dead_treed_proj.shp
+    cmd: python createmasks.py  --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
+      data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees/deadtrees.shp
     deps:
-    - path: data/processed
-      md5: 47072b35402c0e5113b1c912a47c7bc8.dir
-      size: 169238409104
-      nfiles: 1839
-    - path: data/raw/dead_treed_proj.dbf
-      md5: bdd8cf66420982fa5732ce0123ba52dc
-      size: 162512
-    - path: data/raw/dead_treed_proj.prj
-      md5: 800897f6385d09a99ee62978930f07fe
-      size: 436
-    - path: data/raw/dead_treed_proj.shp
-      md5: 2389ce8034d1c6f3955ecf7bd4b5f109
-      size: 2160036
-    - path: data/raw/dead_treed_proj.shx
-      md5: f2e5b8e7338cf8848fa4518c9b65a595
-      size: 61972
+    - path: data/processed.images.2019
+      md5: a3c48148cd75adc9b069207edf27b637.dir
+      size: 169321666330
+      nfiles: 1925
+    - path: data/raw/shapefiles/deadtrees
+      md5: fdc094c879c6588fe71d19a7177eda48.dir
+      size: 1665350
+      nfiles: 5
+    - path: data/raw/shapefiles/deadtrees_area
+      md5: f098a36246abde3d3e0c0efa6183093a.dir
+      size: 1756
+      nfiles: 5
     outs:
-    - path: data/processed.masks
-      md5: f39a35312f6231103bdb82c2090882ee.dir
-      size: 5973460259
-      nfiles: 89
+    - path: data/processed.masks.2019
+      md5: bcdadbbf7cb31f3a2a4f437290dcbd28.dir
+      size: 3288758774
+      nfiles: 49
   createdataset:
-    cmd: python createdataset.py data/processed data/processed.masks data/dataset  --source_dim
-      8192 --tile_size 512 --format PNG
+    cmd: python createdataset.py data/processed.images.2019 data/processed.masks.2019
+      data/dataset  --source_dim 8192 --tile_size 512 --format PNG
     deps:
-    - path: data/processed
-      md5: 47072b35402c0e5113b1c912a47c7bc8.dir
-      size: 169238409104
-      nfiles: 1839
-    - path: data/processed.masks
-      md5: f39a35312f6231103bdb82c2090882ee.dir
-      size: 5973460259
-      nfiles: 89
+    - path: data/processed.images.2019
+      md5: a3c48148cd75adc9b069207edf27b637.dir
+      size: 169321666330
+      nfiles: 1925
+    - path: data/processed.masks.2019
+      md5: bcdadbbf7cb31f3a2a4f437290dcbd28.dir
+      size: 3288758774
+      nfiles: 49
     params:
       params.yaml:
         createdataset.tile_size: 512
@@ -58,29 +55,33 @@ stages:
         source_dim: 8192
     outs:
     - path: data/dataset/stats.csv
-      md5: acb924c4d740c9c0c1c9c2e9fa3de8c6
-      size: 626450
+      md5: 06da46443d403f1fd39a2c75131ec3b4
+      size: 387162
     - path: data/dataset/train
-      md5: 731c1ee66a14bf5df76c9cb4affaeb1b.dir
-      size: 8440494080
-      nfiles: 22
+      md5: feea90303b5e61da575c3cc91b6dbe81.dir
+      size: 4677847040
+      nfiles: 23
   createbalanced:
     cmd: python createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short
-      --format PNG
+      --format PNG --tmp-dir ./tmp
     deps:
+    - path: data/dataset/stats.csv
+      md5: 06da46443d403f1fd39a2c75131ec3b4
+      size: 387162
     - path: data/dataset/train
-      md5: 731c1ee66a14bf5df76c9cb4affaeb1b.dir
-      size: 8440494080
-      nfiles: 22
+      md5: feea90303b5e61da575c3cc91b6dbe81.dir
+      size: 4677847040
+      nfiles: 23
     params:
       params.yaml:
         file_type: PNG
     outs:
     - path: data/dataset/train_balanced
-      md5: 461ef3d0701db0d9314ab1e794914bbb.dir
-      size: 8434124800
-      nfiles: 42
+      md5: f4c61bf5f8202e596872264b2fbc39e3.dir
+      size: 4644454400
+      nfiles: 11
     - path: data/dataset/train_balanced_short
-      md5: dfffb26b86800bc4fefc9820e2a718f5.dir
-      size: 1113671680
-      nfiles: 20
+      md5: 31793179278cb8e6852203ff56903936.dir
+      size: 223795200
+      nfiles: 2
+
