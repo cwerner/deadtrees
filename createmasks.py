@@ -4,11 +4,13 @@ import argparse
 from ast import Num
 from functools import partial
 from pathlib import Path
-from typing import Iterable, List, TypeVar, Union
+from typing import Iterable, List, Optional, TypeVar, Union
 
 import psutil
+from pygeos.set_operations import union
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import rioxarray
 import xarray as xr
@@ -28,12 +30,17 @@ def _identify_empty(tile: Union[Path, str]) -> bool:
     """Helper func for exclude_nodata_tiles"""
 
     with xr.open_rasterio(tile).sel(band=1) as t:
-        status = True if t.max().values - t.min().values > 0 else False
-    return status
+        # original check
+        # status = True if t.max().values - t.min().values > 0 else False
+        # check 2 (edge tiles with all white/ black are also detected)
+        return False if np.isin(t, [0, 255]).all() else True
 
 
 def exclude_nodata_tiles(
-    path: Iterable[Union[Path, str]], tiles_df: gpd.GeoDataFrame, workers: int
+    path: Iterable[Union[Path, str]],
+    tiles_df: gpd.GeoDataFrame,
+    bbox_df: gpd.GeoDataFrame,
+    workers: int,
 ) -> gpd.GeoDataFrame:
     """Identify tiles that only contain NoData (in parallel)"""
 
@@ -62,20 +69,22 @@ def create_tile_grid_gdf(path: Union[Path, str], crs: str) -> gpd.GeoDataFrame:
 
 
 def split_groundtruth_data_by_tiles(
-    dtree: gpd.GeoDataFrame, tiles_df: gpd.GeoDataFrame
+    groundtruth: gpd.GeoDataFrame, tiles_df: gpd.GeoDataFrame
 ) -> gpd.GeoDataFrame:
     """Split the oberserved dead tree areas into tile segments for faster downstream processing"""
 
-    union_gpd = gpd.overlay(dtree, tiles_df, how="union")
-    union_gpd["id"] = union_gpd.id.fillna(1)
-    union_gpd.loc[union_gpd.id > 1, "id"] = 2
+    union_gpd = gpd.overlay(tiles_df, groundtruth, how="intersection")
+    print(union_gpd.head(20))
+    # union_gpd["id"] = union_gpd.id.fillna(1)
+    # union_gpd.loc[union_gpd.id > 1, "id"] = 2
 
     train_files = list(
-        sorted(union_gpd[union_gpd.id == 2].filename.value_counts().keys())
+        # sorted(union_gpd[union_gpd.id == 2].filename.value_counts().keys())
+        sorted(union_gpd.filename.value_counts().keys())
     )
 
     tiles_with_groundtruth = tiles_df[tiles_df.filename.isin(train_files)]
-    return tiles_with_groundtruth, union_gpd[union_gpd.id == 2]
+    return tiles_with_groundtruth, union_gpd  # union_gpd[union_gpd.id == 2]
 
 
 def _mask_tile(
@@ -122,23 +131,40 @@ def create_tile_mask_geotiffs(
     )
 
 
-def create_masks(indir: str, outdir: str, shpfile: str, workers: int) -> None:
+def create_masks(
+    indir: Path,
+    outdir: Path,
+    shpfile: Path,
+    shpfile_bbox: Optional[Path],
+    workers: int,
+) -> None:
     """
     Stage 1: produce masks for training tiles
     """
 
-    IN_PATH = Path(indir)
-    OUT_PATH = Path(outdir)
-
     # load domain shape files and use its crs for the entire script
-    dtree = gpd.read_file(shpfile)
-    crs = dtree.crs  # reference crs
+    groundtruth = gpd.read_file(shpfile)
+    crs = groundtruth.crs  # reference crs
 
-    tiles_df = create_tile_grid_gdf(IN_PATH / "locations.csv", crs)
-    tiles_df = exclude_nodata_tiles(sorted(IN_PATH.glob("*.tif")), tiles_df, workers)
+    groundtruth_bbox = None
+    if shpfile_bbox:
+        groundtruth_bbox = gpd.read_file(shpfile_bbox)
+        crs_bbox = groundtruth_bbox.crs
+        assert crs == crs_bbox, "Coordinate systems for groundtruth and bbox differ"
+
+    tiles_df = create_tile_grid_gdf(indir / "locations.csv", crs)
+    tiles_df = exclude_nodata_tiles(
+        sorted(indir.glob("*.tif")),
+        tiles_df,
+        groundtruth_bbox,
+        workers,
+    )
     print(f"len2: {len(tiles_df)}")
+    tiles_df.to_file("locations.shp")
 
-    tiles_df_train, groundtruth_df = split_groundtruth_data_by_tiles(dtree, tiles_df)
+    tiles_df_train, groundtruth_df = split_groundtruth_data_by_tiles(
+        groundtruth, tiles_df
+    )
     print(f"len3: {len(tiles_df_train)}")
 
     create_tile_mask_geotiffs(
@@ -146,16 +172,16 @@ def create_masks(indir: str, outdir: str, shpfile: str, workers: int) -> None:
         workers,
         groundtruth_df=groundtruth_df,
         crs=crs,
-        inpath=IN_PATH,
-        outpath=OUT_PATH,
+        inpath=indir,
+        outpath=outdir,
     )
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("indir")
-    parser.add_argument("outdir")
-    parser.add_argument("shpfile")
+    parser.add_argument("indir", type=Path)
+    parser.add_argument("outdir", type=Path)
+    parser.add_argument("shpfile", type=Path)
 
     num_cores = psutil.cpu_count(logical=False)
 
@@ -167,11 +193,25 @@ def main():
         help="number of workers for parallel execution [def: %(default)s]",
     )
 
+    parser.add_argument(
+        "--bbox",
+        dest="bbox",
+        type=Path,
+        default=None,
+        help="shapefile with bounding boxes that should be used to create training tiles",
+    )
+
     args = parser.parse_args()
 
     Path(args.outdir).mkdir(parents=True, exist_ok=True)
 
-    create_masks(args.indir, args.outdir, args.shpfile, args.workers)
+    create_masks(
+        args.indir,
+        args.outdir,
+        args.shpfile,
+        args.bbox,
+        args.workers,
+    )
 
 
 if __name__ == "__main__":

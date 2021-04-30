@@ -68,7 +68,7 @@ def main():
         "--balanced_size",
         dest="balanced_size",
         type=int,
-        default=512,
+        default=256,
         help="size of balanced shards [def: %(default)s]",
     )
 
@@ -76,7 +76,7 @@ def main():
         "--balanced_short_size",
         dest="balanced_short_size",
         type=int,
-        default=128,
+        default=64,
         help="size of balanced-short shards [def: %(default)s]",
     )
 
@@ -87,6 +87,14 @@ def main():
         default="PNG",
         choices=["PNG", "TIFF"],
         help="target file format (PNG, TIFF) [def: %(default)s]",
+    )
+
+    parser.add_argument(
+        "--tmp-dir",
+        dest="tmp_dir",
+        type=Path,
+        default=None,
+        help="use this location as tmp dir",
     )
 
     args = parser.parse_args()
@@ -100,25 +108,28 @@ def main():
 
     df = pd.read_csv(args.stats)
 
+    if args.tmp_dir:
+        print(f"Using custom tmp dir: {args.tmp_dir}")
+        args.tmp_dir.mkdir(parents=True, exist_ok=True)
+
     args.balanced_dir.mkdir(parents=True, exist_ok=True)
     args.balanced_short_dir.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(dir=args.tmp_dir) as tmpdir:
         # The context manager will automatically delete this directory after this section
         print(f"Created a temporary directory: {tmpdir}")
 
         print("Extract source tars")
         # untar input
-        for tf_name in sorted(Path(args.input_dir).glob("train-000*.tar")):
+        for tf_name in sorted(Path(args.input_dir).glob("train-00*.tar")):
             with tarfile.open(tf_name) as tf:
                 tf.extractall(tmpdir)
 
         print("Write balanced shards")
-        SIZE = 512
         splits = split_df(df, args.balanced_size)
         for s_cnt, s in enumerate(splits):
             print(f"Split: {s_cnt}: {len(s)}, {len(splits)}")
-            s = s[:SIZE]
+            s = s[: args.balanced_size]
 
             with tarfile.open(
                 args.balanced_dir / f"train-balanced-{s_cnt:06d}.tar", "w"
@@ -130,11 +141,10 @@ def main():
 
         print("Write balanced-short shards")
         # --- short
-        SIZE = 128
         splits = split_df(df, args.balanced_short_size, no_zeros=True)
         for s_cnt, s in enumerate(splits):
             print(f"Split: {s_cnt}: {len(s)}, {len(splits)}")
-            s = s[:SIZE]
+            s = s[: args.balanced_short_size]
 
             with tarfile.open(
                 args.balanced_short_dir / f"train-balanced-short-{s_cnt:06d}.tar", "w"

@@ -107,7 +107,7 @@ def split_tiles(images, masks, workers: int, **kwargs) -> List[Any]:
 
     stats = []
     with wds.ShardWriter(
-        str(kwargs["outdir"]) + "/train/train-%06d.tar", maxcount=1000
+        str(kwargs["outdir"]) + "/train/train-%06d.tar", maxcount=512
     ) as sink:
 
         data = process_map(
@@ -176,7 +176,7 @@ def split_inference_tiles(images, workers: int, **kwargs) -> None:
     """Split inference tiles into subtiles in parallel and save them to disk"""
 
     with wds.ShardWriter(
-        str(kwargs["outdir"]) + "/inference/inference-%06d.tar", maxcount=1000
+        str(kwargs["outdir"]) + "/inference/inference-%06d.tar", maxcount=512
     ) as sink:
         # process images in subsets
         for subset in [images[x : x + 100] for x in range(0, len(images), 100)]:
