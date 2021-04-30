@@ -68,7 +68,7 @@ def main():
         "--balanced_size",
         dest="balanced_size",
         type=int,
-        default=1024,
+        default=256,
         help="size of balanced shards [def: %(default)s]",
     )
 
@@ -76,7 +76,7 @@ def main():
         "--balanced_short_size",
         dest="balanced_short_size",
         type=int,
-        default=256,
+        default=64,
         help="size of balanced-short shards [def: %(default)s]",
     )
 
