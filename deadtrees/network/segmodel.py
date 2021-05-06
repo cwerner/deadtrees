@@ -113,7 +113,13 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         if batch_idx == 0:
             sample_chart = show(
-                x=img.cpu(), y=mask.cpu(), y_hat=pred.cpu(), n_samples=4, stats=stats
+                x=img.cpu(),
+                y=mask.cpu(),
+                y_hat=pred.cpu(),
+                n_samples=4,
+                stats=stats,
+                dpi=72,
+                display=False,
             )
             for logger in self.logger:
                 if isinstance(logger, pl.loggers.wandb.WandbLogger):
@@ -128,6 +134,29 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
                     )
 
         return total_loss
+
+    def test_step(self, batch, batch_idx):
+        img, mask, stats = batch
+        img = img.float()
+        mask = mask.long()
+        pred = self(img)
+        softmaxed_pred = torch.nn.functional.softmax(pred, dim=1)
+        a_max = torch.argmax(softmaxed_pred, dim=1)
+
+        # Calculate losses
+        ce_loss = self.ce_loss(pred, mask)
+        binary_tversky_loss = self.binary_tversky_loss(a_max, mask.unsqueeze(dim=1))
+        total_loss = (ce_loss + binary_tversky_loss) / 2
+
+        # Calculate dice coefficient
+        dice_coeff = binary_dice_coefficient(a_max, mask)
+        accuracy = (a_max == mask).float().mean()
+
+        self.log("test/dice_coeff", dice_coeff)
+        self.log("test/accuracy", accuracy)
+        self.log("test/ce_loss", ce_loss)
+        self.log("test/binary_tversky_loss", binary_tversky_loss)
+        self.log("test/total_loss", total_loss)
 
     def configure_optimizers(self):
         opt = torch.optim.Adam(

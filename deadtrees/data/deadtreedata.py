@@ -40,15 +40,15 @@ def split_shards(original_list, split_fractions):
     sublists = []
     prev_index = 0
     for weight in split_fractions:
-        next_index = prev_index + math.ceil((len(original_list) * weight))
-
+        next_index = prev_index + int(round((len(original_list) * weight), 0))
         sublists.append(original_list[prev_index:next_index])
         prev_index = next_index
+
+    assert sum([len(x) for x in sublists]) == len(original_list), "Split size mismatch"
 
     if not all(len(x) > 0 for x in sublists):
         logger.warning("Unexpected shard distribution encountered - trying to fix this")
         if len(split_fractions) == 3:
-            original_list
             if len(sublists[0]) > 2:
                 sublists[0] = original_list[:-2]
                 sublists[1] = original_list[-2:-1]
@@ -126,7 +126,9 @@ val_transform = A.Compose(
 
 def transform(sample, transform_func=None):
     if transform_func:
-        transformed = transform_func(image=sample["image"], mask=sample["mask"])
+        transformed = transform_func(
+            image=sample["image"].copy(), mask=sample["mask"].copy()
+        )
         sample["image"] = transformed["image"]
         sample["mask"] = transformed["mask"]
     return sample
@@ -200,9 +202,9 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 )
                 .shuffle(0)
                 .map(sample_decoder)
-                .rename(image="rgb.png")
+                .rename(image="rgb.png", mask="msk.png", stats="txt")
                 .map(partial(transform, transform_func=val_transform))
-                .to_tuple("image")
+                .to_tuple("image", "mask", "stats")
             )
 
     def train_dataloader(self) -> DataLoader:

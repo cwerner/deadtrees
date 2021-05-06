@@ -1,6 +1,7 @@
 import logging
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -14,103 +15,164 @@ plt.style.use("ggplot")
 logger = logging.getLogger(__name__)
 
 
-def fig2img(fig):
+def is_running_from_ipython() -> bool:
+    """Check if code is executed in ipython (jupyter?) environment"""
+    from IPython import get_ipython
+
+    return get_ipython() is not None
+
+
+def render_image(a: np.ndarray, width=600) -> None:
+    """Display ndarray in rgb image format in Jupyter"""
+
+    # TODO: simplify?
+    from io import BytesIO
+
+    import IPython
+
+    from PIL import Image
+
+    img_crop_pil = Image.fromarray(a)
+
+    with BytesIO() as byte_io:
+        img_crop_pil.save(byte_io, format="png")
+        png_buffer = byte_io.getvalue()
+
+    i = IPython.display.Image(data=png_buffer, width=width)
+    IPython.display.display(i)
+
+
+def fig2img(fig: plt.Figure, dpi: int = 72) -> np.ndarray:
     """Convert a Matplotlib figure to a PIL Image and return it"""
+
     import io
 
     buf = io.BytesIO()
-    fig.savefig(buf, dpi=72)
+    fig.savefig(buf, dpi=dpi, bbox_inches="tight")
     buf.seek(0)
     return imread(buf)
 
 
+def rgbtensor_to_rgb(x: torch.Tensor) -> List[np.array]:
+    """Inverse Normalize a rgb tensor and return list of rgb samples"""
+    MEAN, STD = DeadtreeDatasetConfig.mean, DeadtreeDatasetConfig.std
+
+    x_norm = []
+    for i in range(len(x)):
+        x_norm.append(
+            np.array((x[i].permute(1, 2, 0) * STD + MEAN) * 255, dtype="uint8")
+        )
+    return x_norm
+
+
+def masktensor_to_rgb(
+    x: torch.Tensor, base_rgb: Optional[torch.Tensor] = None
+) -> List[np.array]:
+    """Scale mask tensor to rgb sample"""
+
+    rgbs = rgbtensor_to_rgb(base_rgb) if base_rgb is not None else None
+
+    x_norm = []
+    for i in range(len(x)):
+        mask = np.array(x[i].unsqueeze(dim=0).permute(1, 2, 0))
+        mask2 = np.array(np.where(mask == 1, 1, 0.66) * 255, dtype="uint8")
+        x_norm.append(np.dstack([rgbs[i], mask2]) if base_rgb is not None else mask)
+    return x_norm
+
+
 def show(
     x: Union[torch.Tensor, np.ndarray],
-    y: Union[torch.Tensor, np.ndarray],
+    *,
+    y: Optional[Union[torch.Tensor, np.ndarray]] = None,
     y_hat: Optional[Union[torch.Tensor, np.ndarray]] = None,
-    n_samples: Optional[int] = 4,
-    threshold: Optional[float] = 0.95,
+    n_samples: Optional[int] = 1,
     stats: Optional[Dict] = None,
-):
-    """
-    show: helper function to display rgb sample (X), target mask (y) and predicted mask (yhat)
-    """
+    dpi: Optional[int] = 100,
+    display: Optional[bool] = False,
+) -> np.ndarray:
+
+    items = {k: v for k, v in zip(["x", "y", "y_hat"], [x, y, y_hat]) if v is not None}
+    items_orig = items.copy()
 
     # check for identical types
-    items = [x, y, y_hat] if y_hat is not None else [x, y]
-    if not all(isinstance(i, type(x)) for i in items):
+    if not all(isinstance(i, type(x)) for i in items.values()):
         raise ValueError("types of x, y, (y_hat) have to be identical")
 
-    # check for identical batch sizes
-    if not all(len(i) == len(items[0]) for i in items):
-        raise ValueError("sizes of x, y, (y_hat) have to be identical")
+    # move to cpu if necessary
+    if isinstance(items["x"], torch.Tensor):
+        items = {k: v.cpu() for k, v in items.items()}
 
-    if isinstance(x, torch.Tensor):
-        x = x.cpu()
-        y = y.cpu()
         if y_hat is not None:
-            y_hat = y_hat.cpu().argmax(dim=1)
+            items["y_hat"] = items["y_hat"].argmax(dim=1)
 
+    items["x"] = rgbtensor_to_rgb(items["x"])
+
+    if "y" in items:
+        # fancy_x_rgb, y_rgb = masktensor_to_rgb(items['y'], base_rgb=items_orig['x'])
+        # items['x'] = fancy_x_rgb
+        # items['y'] = y_rgb
+        items["x_masked"] = masktensor_to_rgb(items["y"], base_rgb=items_orig["x"])
+
+    # plotting
     subplot_size = 4  # plt in inches
 
     n_samples = len(x) if not n_samples else n_samples
 
-    fig_size_x = subplot_size * (len(items) + 1)
+    fig_size_x = subplot_size * len(items)
     fig_size_y = subplot_size * n_samples
 
     fig, ax = plt.subplots(
         n_samples,
-        len(items) + 1,
+        len(items),
         figsize=(fig_size_y, fig_size_x),
         sharex=True,
         sharey=True,
         gridspec_kw={"wspace": 0, "hspace": 0},
     )
 
+    if isinstance(ax, matplotlib.axes.Axes):
+        ax = np.array([ax])
+
     if len(ax.shape) == 1:
         ax = ax[np.newaxis, :]
 
-    MEAN, STD = DeadtreeDatasetConfig.mean, DeadtreeDatasetConfig.std
-
     for i in range(n_samples):
-        rgb = np.array((x[i].permute(1, 2, 0) * STD + MEAN) * 255, dtype="uint8")
-        mask = np.array(y[i].unsqueeze(dim=0).permute(1, 2, 0))
-        mask2 = np.array(np.where(mask == 1, 1, 0.66) * 255, dtype="uint8")
-        combo = np.dstack([rgb, mask2])
+        for j, k in enumerate(sorted(items.keys())):
+            im = items[k]
+            ax[i, j].imshow(im[i])
 
-        ax[i, 0].imshow(rgb)
+            if k == "x" and stats:
+                txt = f"DTF: {stats[i]['frac']:.2f} [%]"
+                anchored_text = AnchoredText(
+                    txt, loc=2, prop=dict(fontsize=8, color="purple")
+                )
+                ax[i, j].add_artist(anchored_text)
 
-        if stats:
-            txt = f"DTF: {stats[i]['frac']:.2f} [%]"
-            anchored_text = AnchoredText(
-                txt, loc=2, prop=dict(fontsize=10, color="purple")
-            )
-            ax[i, 0].add_artist(anchored_text)
-
-        ax[i, 1].imshow(combo)
-        ax[i, 2].imshow(mask)
-
-        if y_hat is not None:
-            # prediction = np.where(y_hat[i] >= threshold, 1, 0)
-            # prediction = np.array(y_hat[i] * 255, dtype='uint8')
-            ax[i, 3].imshow(y_hat[i])
-
-    ax[0, 0].set_title(r"$X$")
-    ax[0, 1].set_title(r"$X_{masked}$")
-    ax[0, 2].set_title(r"$y$")
-    if y_hat is not None:
-        ax[0, 3].set_title(r"$\hat{y}$")
-
-    plt.setp(ax, xticks=[], yticks=[])
+            if k == "x":
+                ax[0, j].set_title(r"$X$")
+            if k == "x_masked":
+                ax[0, j].set_title(r"$X_{mask}$")
+            if k == "y":
+                ax[0, j].set_title(r"$y$")
+            if k == "y_hat":
+                ax[0, j].set_title(r"$\hat{y}$")
+            ax[i, j].set_xticks([])
+            ax[i, j].set_yticks([])
 
     for i in range(n_samples):
         if stats:
-            ax[i, 0].set_ylabel(stats[i]["file"], fontsize=10)
+            ax[i, 0].set_ylabel(stats[i]["file"], fontsize=8)
         else:
             ax[i, 0].set_ylabel(f"Sample {i}")
 
     fig.subplots_adjust(wspace=0, hspace=0)
     fig.tight_layout()
-    out = fig2img(fig)
+    out = fig2img(fig, dpi=dpi)
     plt.close(fig)
+
+    if is_running_from_ipython():
+        if display:
+            render_image(out)
+            return None
+
     return out
