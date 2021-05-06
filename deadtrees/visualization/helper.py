@@ -87,7 +87,8 @@ def show(
     y_hat: Optional[Union[torch.Tensor, np.ndarray]] = None,
     n_samples: Optional[int] = 1,
     stats: Optional[Dict] = None,
-    dpi: int = 100,
+    dpi: Optional[int] = 100,
+    display: Optional[bool] = False,
 ) -> np.ndarray:
 
     items = {k: v for k, v in zip(["x", "y", "y_hat"], [x, y, y_hat]) if v is not None}
@@ -170,7 +171,8 @@ def show(
     plt.close(fig)
 
     if is_running_from_ipython():
-        render_image(out)
-        return None
+        if display:
+            render_image(out)
+            return None
 
     return out
