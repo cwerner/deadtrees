@@ -113,7 +113,12 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         if batch_idx == 0:
             sample_chart = show(
-                x=img.cpu(), y=mask.cpu(), y_hat=pred.cpu(), n_samples=4, stats=stats
+                x=img.cpu(),
+                y=mask.cpu(),
+                y_hat=pred.cpu(),
+                n_samples=4,
+                stats=stats,
+                dpi=72,
             )
             for logger in self.logger:
                 if isinstance(logger, pl.loggers.wandb.WandbLogger):
