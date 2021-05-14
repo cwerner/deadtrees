@@ -16,7 +16,14 @@ if not MODEL_CHECKPOINT_PATH.exists():
 # extra package dependencies
 EXTRAS = {
     "train": ["wandb"],
-    "preprocess": ["gdal", "pygeos"],
+    "preprocess": [
+        "gdal",
+        "pygeos",
+        "bottleneck",
+        "dask",
+        "rioxarray",
+        "xarray",
+    ],
 }
 EXTRAS["all"] = [i for i in chain.from_iterable(EXTRAS.values())]
 
@@ -27,12 +34,9 @@ setup(
     packages=find_packages(),
     install_requires=[
         "albumentations",
-        "bottleneck",
-        "dask",
         "dvc[s3]",
         "python-dotenv",
-        "fastapi",
-        "hydra-core>=1.1.0.dev5",
+        "hydra-core>=1.1.0.dev6",
         "hydra-colorlog>=1.1.0.dev1",
         "pydantic",
         "torch>=1.8.1",
@@ -40,10 +44,8 @@ setup(
         "pytorch-lightning>=1.2.10",
         "pytorch-lightning-bolts>=0.3.2",
         "rich",
-        "rioxarray",
         "tqdm",
-        "webdataset @ git+https://github.com/tmbdev/webdataset#egg=webdataset",
-        "xarray",
+        "webdataset>=0.1.62",
     ],
     # install in editable mode: pip install -e ".[train,preprocess]" or
     #                           pip install -e ".[all]"
