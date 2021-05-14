@@ -6,6 +6,7 @@ logs/
 ./data/
 lightning_logs/
 outputs/
+old
 
 # ignore data files
 *.torch
