@@ -4,7 +4,6 @@ import logging
 
 import pytorch_lightning as pl
 import torch
-import wandb
 from deadtrees.loss.tversky.binary import BinaryTverskyLossV2
 from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
@@ -123,6 +122,8 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
             )
             for logger in self.logger:
                 if isinstance(logger, pl.loggers.wandb.WandbLogger):
+                    import wandb
+
                     logger.experiment.log(
                         {
                             "sample": wandb.Image(
