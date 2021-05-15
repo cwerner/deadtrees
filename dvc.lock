@@ -16,7 +16,7 @@ stages:
       size: 169321666330
       nfiles: 1925
   createmasks:
-    cmd: python createmasks.py  --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
+    cmd: python scripts/createmasks.py  --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
       data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees/deadtrees.shp
     deps:
     - path: data/processed.images.2019
@@ -37,7 +37,7 @@ stages:
       size: 3288758774
       nfiles: 49
   createdataset:
-    cmd: python createdataset.py data/processed.images.2019 data/processed.masks.2019
+    cmd: python scripts/createdataset.py data/processed.images.2019 data/processed.masks.2019
       data/dataset  --source_dim 8192 --tile_size 512 --format PNG
     deps:
     - path: data/processed.images.2019
@@ -62,7 +62,7 @@ stages:
       size: 4677847040
       nfiles: 23
   createbalanced:
-    cmd: python createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short
+    cmd: python scripts/createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short
       --format PNG --tmp-dir ./tmp
     deps:
     - path: data/dataset/stats.csv
