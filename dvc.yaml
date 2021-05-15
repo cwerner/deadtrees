@@ -24,7 +24,7 @@ stages:
 
   createmasks:
     cmd: >-
-      python createmasks.py 
+      python scripts/createmasks.py 
       --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
       data/processed.images.2019 
       data/processed.masks.2019 
@@ -38,7 +38,7 @@ stages:
 
   createdataset:
     cmd: >-
-      python createdataset.py data/processed.images.2019 data/processed.masks.2019 data/dataset 
+      python scripts/createdataset.py data/processed.images.2019 data/processed.masks.2019 data/dataset 
       --source_dim ${source_dim}
       --tile_size ${createdataset.tile_size}
       --format ${file_type}
@@ -55,7 +55,7 @@ stages:
 
   createbalanced:
     cmd: >-
-      python createbalanced.py 
+      python scripts/createbalanced.py 
       data/dataset/stats.csv
       data/dataset/train 
       data/dataset/train_balanced 
