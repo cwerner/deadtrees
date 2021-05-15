@@ -2,7 +2,7 @@ wandb
 .vscode
 .envrc
 misc/
-logs/
+**/logs/
 ./data/
 lightning_logs/
 outputs/
