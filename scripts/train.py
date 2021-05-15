@@ -30,7 +30,7 @@ load_envs()
 TILE_SIZE = 512
 
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(config_path="../conf", config_name="config")
 def main(config: DictConfig) -> Trainer:
 
     # Imports should be nested inside @hydra.main to optimize tab completion

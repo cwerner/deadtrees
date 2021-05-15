@@ -41,6 +41,7 @@ pip install -e ".[all]"
 
 Train model with default configuration:
 ```yaml
+cd scripts
 python train.py
 ```
 

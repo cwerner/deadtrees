@@ -14,5 +14,4 @@ checkpoint_callback = ModelCheckpoint(
     verbose=True,
     monitor="val/total_loss",
     mode="min",
-    prefix="",
 )
