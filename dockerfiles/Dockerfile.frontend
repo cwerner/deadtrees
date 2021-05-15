@@ -2,7 +2,7 @@ FROM python:3.8-slim
 
 RUN mkdir /frontend
 
-COPY requirements-frontend.txt /frontend/requirements.txt
+COPY dockerfiles/requirements-frontend.txt /frontend/requirements.txt
 
 WORKDIR /frontend
 

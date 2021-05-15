@@ -7,7 +7,7 @@ RUN apt-get update && \
 
 RUN mkdir /backend
 
-COPY requirements-backend.txt /backend/requirements.txt
+COPY dockerfiles/requirements-backend.txt /backend/requirements.txt
 
 WORKDIR /backend
 
