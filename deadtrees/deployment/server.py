@@ -9,7 +9,7 @@ from deadtrees.deployment.inference import get_model, get_segmentation
 
 MODEL = "bestmodel.ckpt"
 
-model = get_model(MODEL)
+model = get_model(f"checkpoints/{MODEL}")
 
 app = FastAPI(
     title="DeadTrees image segmentation",
