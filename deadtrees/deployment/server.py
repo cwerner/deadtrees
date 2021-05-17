@@ -43,7 +43,9 @@ async def root():
                     <h1 class="display-4">🌲☠️🌲🌲🌲 DeadTrees Inference API 🌲🌲☠️☠️🌲</h1>
                     <p class="lead">REST API for semantic segmentation of dead trees from ortho photos</p>
                     <hr class="my-4">
-                    <p>You will be redirected to the <a href="./docs"><b>OpenAPI documentation page</b></a> in 7 seconds...</p>
+                    <p>
+                    There also is an <a href="./" onmouseover="javascript:event.target.port=8502">interactive streamlit frontend</a>. You will be redirected to the <a href="./docs"><b>OpenAPI documentation page</b></a> in 10 seconds.
+                    </p>
                 </div>
             </div>
         </div>
