@@ -31,9 +31,19 @@ st.write(
 )  # description and instructions
 
 
-input_image = st.file_uploader("insert image")  # image upload widget
+inf_types = {
+    "pytorch": "PyTorch (native)",
+    "onnx": "ONNX",
+}
 
-if st.button("Get segmentation map"):
+inference_type = st.selectbox(
+    "Inference type", list(inf_types.keys()), format_func=inf_types.get
+)
+
+
+input_image = st.file_uploader("Insert Image")  # image upload widget
+
+if st.button("Get Segmentation Map"):
 
     col1, col2 = st.beta_columns(2)
 
