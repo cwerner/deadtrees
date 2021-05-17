@@ -19,13 +19,13 @@ services:
     depends_on:
       - backend
     ports:
-        - 8502:8501
+      - 8502:8501
     networks:
-        - app
+      - app
     restart: on-failure
     container_name: streamlit-frontend
 
-    # for production use bridge network...
-    networks:
-      app:
-        driver: bridge
+# for production use bridge network...
+networks:
+  app:
+    driver: bridge
