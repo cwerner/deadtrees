@@ -83,22 +83,23 @@ def test_inference_batch_size(sample_batch):
     assert sample_batch.shape == (bs, 3, 512, 512)
 
 
+# sizes: bs, y, x
 def test_inference_pytorch_single_predict_size(pytorch_inference, sample_image):
-    assert (pytorch_inference.run(sample_image)).shape == (1, 2, 512, 512)
+    assert (pytorch_inference.run(sample_image)).shape == (512, 512)
 
 
 def test_inference_pytorch_batch_predict_size(pytorch_inference, sample_batch):
-    assert (pytorch_inference.run(sample_batch)).shape == (bs, 2, 512, 512)
+    assert (pytorch_inference.run(sample_batch)).shape == (bs, 512, 512)
 
 
 def test_inference_onnx_single_predict_size(onnx_inference, sample_image):
     sample_image_numpy = sample_image.detach().cpu().numpy()
-    assert (onnx_inference.run(sample_image_numpy)).shape == (1, 2, 512, 512)
+    assert (onnx_inference.run(sample_image_numpy)).shape == (512, 512)
 
 
 def test_inference_onnx_batch_predict_size(onnx_inference, sample_batch):
     sample_batch_numpy = sample_batch.detach().cpu().numpy()
-    assert (onnx_inference.run(sample_batch_numpy)).shape == (bs, 2, 512, 512)
+    assert (onnx_inference.run(sample_batch_numpy)).shape == (bs, 512, 512)
 
 
 # def test_inference_pytorch_batch():

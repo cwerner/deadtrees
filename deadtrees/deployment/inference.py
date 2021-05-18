@@ -44,7 +44,11 @@ class PyTorchInference(Inference):
 
         if input_tensor.dim() == 3:
             input_tensor.unsqueeze_(0)
-        return self._model(input_tensor)
+
+        with torch.no_grad():
+            out = self._model(input_tensor)
+
+        return out.argmax(dim=1).squeeze()
 
 
 class ONNXInference(Inference):
@@ -69,13 +73,9 @@ class ONNXInference(Inference):
 
         input_name = self._sess.get_inputs()[0].name
         output_name = self._sess.get_outputs()[0].name
-        return self._sess.run([output_name], {input_name: input_array})[0]
 
-    #
-    # out_ort = sess.run(None, {
-    #     sess.get_inputs()[0].name: data.numpy(),
-    #     sess.get_inputs()[1].name: index.numpy(),
-    # })
+        out = self._sess.run([output_name], {input_name: input_array})[0]
+        return np.argmax(out, axis=1).squeeze()
 
 
 def get_model(model_path: str = "bestmodel.ckpt"):
