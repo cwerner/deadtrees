@@ -1,0 +1,4 @@
+outs:
+- md5: 4f0c90d64b906d57e0624e3a231c671d
+  size: 372676045
+  path: bestmodel.ckpt

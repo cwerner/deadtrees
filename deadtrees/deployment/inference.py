@@ -1,4 +1,6 @@
 import io
+from pathlib import Path
+from typing import Union
 
 import numpy as np
 import torch
@@ -6,6 +8,74 @@ from deadtrees.data.deadtreedata import val_transform
 from deadtrees.network.segmodel import SemSegment
 from matplotlib import cm
 from PIL import Image
+
+
+class Inference:
+    def __init__(self, model_file: Union[str, Path]) -> None:
+        self._model_file = (
+            model_file if isinstance(model_file, Path) else Path(model_file)
+        )
+
+    @property
+    def model_file(self) -> str:
+        return self._model_file.name
+
+    def run(self, input_tensor):
+        return NotImplementedError
+
+
+class PyTorchInference(Inference):
+    def __init__(self, model_file) -> None:
+        super().__init__(model_file)
+
+        if self._model_file.suffix != ".ckpt":
+            raise ValueError(
+                f"ckpt file expected, but {self._model_file.suffix} received"
+            )
+
+        model = SemSegment.load_from_checkpoint(self._model_file)
+        model.eval()
+
+        self._model = model
+
+    def run(self, input_tensor):
+        if not isinstance(input_tensor, torch.Tensor):
+            raise TypeError("no pytorch tensor provided")
+
+        if input_tensor.dim() == 3:
+            input_tensor.unsqueeze_(0)
+        return self._model(input_tensor)
+
+
+class ONNXInference(Inference):
+    def __init__(self, model_file) -> None:
+        super().__init__(model_file)
+
+        if self._model_file.suffix != ".onnx":
+            raise ValueError(
+                f"onnx file expected, but {self._model_file.suffix} received"
+            )
+
+        import onnxruntime
+
+        self._sess = onnxruntime.InferenceSession(str(self._model_file), None)
+
+    def run(self, input_array):
+        if not isinstance(input_array, np.ndarray):
+            raise TypeError("no numpy array provided")
+
+        if input_array.ndim == 3:
+            input_array = input_array[np.newaxis, ...]
+
+        input_name = self._sess.get_inputs()[0].name
+        output_name = self._sess.get_outputs()[0].name
+        return self._sess.run([output_name], {input_name: input_array})[0]
+
+    #
+    # out_ort = sess.run(None, {
+    #     sess.get_inputs()[0].name: data.numpy(),
+    #     sess.get_inputs()[1].name: index.numpy(),
+    # })
 
 
 def get_model(model_path: str = "bestmodel.ckpt"):

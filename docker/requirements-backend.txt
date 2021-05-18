@@ -3,4 +3,5 @@ fastapi>=0.62
 pillow==8.2.0
 torch==1.8.1+cpu
 torchvision==0.9.1+cpu
+onnxruntime==1.7.0
 -e .
