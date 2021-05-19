@@ -1,0 +1,4 @@
+outs:
+- md5: 928919e4fb77e96fd538a49163e64238
+  size: 124144506
+  path: bestmodel.onnx

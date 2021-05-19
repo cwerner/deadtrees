@@ -1,8 +1,10 @@
 import io
 import textwrap
+from enum import Enum
 
 import requests
 import streamlit as st
+from models import PredictionStats
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from PIL import Image
@@ -11,7 +13,15 @@ from PIL import Image
 backend = "http://backend:8000/segmentation"
 
 
-def process(image, server_url: str):
+# TDOD: refactor to central localtion
+class ModelTypes(Enum):
+    """allowed model types"""
+
+    PYTORCH = "pytorch"
+    ONNX = "onnx"
+
+
+def process(image: bytes, server_url: str):
 
     m = MultipartEncoder(fields={"file": ("filename", image, "image/jpeg")})
 
@@ -19,7 +29,10 @@ def process(image, server_url: str):
         server_url, data=m, headers={"Content-Type": m.content_type}, timeout=8000
     )
 
-    return r
+    return {
+        "mask": r.content,
+        "stats": PredictionStats.parse_obj(r.headers),
+    }
 
 
 # construct UI layout
@@ -27,33 +40,46 @@ st.title("DeadTree image segmentation")
 
 st.write(
     """Obtain semantic segmentation maps of the image in input via our UNet implemented in PyTorch.
-         Visit this URL at port 8501 for the streamlit interface."""
+         Visit this URL at port 8000 for REST API."""
 )  # description and instructions
 
 
-input_image = st.file_uploader("insert image")  # image upload widget
+inf_types = {
+    ModelTypes.PYTORCH: "PyTorch (native)",
+    ModelTypes.ONNX: "ONNX",
+}
 
-if st.button("Get segmentation map"):
+itype = st.selectbox(
+    "Inference type", list(inf_types.keys()), format_func=inf_types.get
+)
+
+
+input_image = st.file_uploader("Insert Image")  # image upload widget
+
+if st.button("Get Segmentation Map"):
 
     col1, col2 = st.beta_columns(2)
 
     if input_image:
-        segments = process(input_image, backend)
-        original_image = Image.open(input_image).convert("RGB")
-        segmented_image = Image.open(io.BytesIO(segments.content)).convert("RGB")
-        col1.header("Original")
-        col1.image(original_image, use_column_width=True)
-        col2.header("Segmented")
-        col2.image(segmented_image, use_column_width=True)
+        result = process(input_image, f"{backend}?model_type={itype.value}")
 
-        d = segments.headers
+        rgb_image = Image.open(input_image).convert("RGB")
+        mask_image = Image.open(io.BytesIO(result["mask"])).convert("RGB")
+
+        col1.header("Source")
+        col1.image(rgb_image, use_column_width=True)
+        col2.header("Prediction")
+        col2.image(mask_image, use_column_width=True)
+
+        stats = result["stats"]
         st.markdown(
             textwrap.dedent(
                 f"""\
-                #### Prediction stats  
-                Model used: **{d['model_name']}**  
-                Percentage of dead trees detected: **{(float(d['fraction'])*100):.2f}%** 
-                Inference duration: **{float(d['elapsed']):.1f}sec**  
+                ### Stats 📊   
+                Model: **{stats.model_name}**  
+                Format: **{stats.model_type}**  
+                Percentage of dead trees detected: **{stats.fraction*100:.2f}%**  
+                Inference duration: **{stats.elapsed:.1f}sec**  
                 """  # noqa
             )
         )

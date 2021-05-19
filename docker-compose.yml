@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  backend:
+    build:
+      context: ./
+      dockerfile: ${PWD:-.}/docker/backend.Dockerfile
+    ports:
+      - 8000:8000
+    networks:
+      - app
+    restart: on-failure
+    container_name: fastapi-backend
+
+  frontend:
+    build:
+      context: ./
+      dockerfile: ${PWD:-.}/docker/frontend.Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - 8502:8501
+    networks:
+      - app
+    restart: on-failure
+    container_name: streamlit-frontend
+
+# for production use bridge network...
+networks:
+  app:
+    driver: bridge

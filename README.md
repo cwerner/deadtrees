@@ -13,7 +13,13 @@
 </div>
 
 ## Description
-Map dead trees from ortho photos. A Unet (semantic segmentation model) is trained on a ortho photo collection of Luxembourg (year: 2019).
+Map dead trees from ortho photos. A Unet (semantic segmentation model) is trained on a ortho photo collection of Luxembourg (year: 2019). This repository contains the preprocessing pipeline, training scripts, models, and a docker-based demo app (backend: FastAPI, frontend: Streamlit).
+
+<p align="center">
+   <img src="./assets/frontend.png" alt="Streamlit frontend"/>
+   Fig 1: Streamlit UI for interactive prediction of dead trees in ortho photos.
+</p>
+
 
 ## How to run
 

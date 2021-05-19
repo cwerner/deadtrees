@@ -1,15 +1,25 @@
 import io
-from typing import Any, Dict
+from enum import Enum
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, File
 from pydantic import BaseModel
 from starlette.responses import HTMLResponse, Response
 
-from deadtrees.deployment.inference import get_model, get_segmentation
+import numpy as np
+import torch
+from deadtrees.data.deadtreedata import val_transform
+from deadtrees.deployment.inference import ONNXInference, PyTorchInference
+from deadtrees.deployment.models import PredictionStats, predictionstats_to_str
+from deadtrees.utils.timer import record_execution_time
+from numpy.lib.arraysetops import isin
+from PIL import Image
 
-MODEL = "bestmodel.ckpt"
+MODEL = "bestmodel"
 
-model = get_model(f"checkpoints/{MODEL}")
+# TODO: make this an endpoint
+pytorch_model = PyTorchInference(f"checkpoints/{MODEL}.ckpt")
+onnx_model = ONNXInference(f"checkpoints/{MODEL}.onnx")
 
 app = FastAPI(
     title="DeadTrees image segmentation",
@@ -43,7 +53,9 @@ async def root():
                     <h1 class="display-4">🌲☠️🌲🌲🌲 DeadTrees Inference API 🌲🌲☠️☠️🌲</h1>
                     <p class="lead">REST API for semantic segmentation of dead trees from ortho photos</p>
                     <hr class="my-4">
-                    <p>You will be redirected to the <a href="./docs"><b>OpenAPI documentation page</b></a> in 7 seconds...</p>
+                    <p>
+                    There also is an <a href="./" onmouseover="javascript:event.target.port=8502">interactive streamlit frontend</a>. You will be redirected to the <a href="./docs"><b>OpenAPI documentation page</b></a> in 10 seconds.
+                    </p>
                 </div>
             </div>
         </div>
@@ -59,19 +71,58 @@ async def root():
     """
 
 
-@app.post("/segmentation")  # , response_model=Prediction)
-def get_segmentation_map(file: bytes = File(...)):
+class ModelTypes(Enum):
+    """allowed model types"""
+
+    PYTORCH = "pytorch"
+    ONNX = "onnx"
+
+
+def split_image_into_tiles(image: Image):
+    # complete this: what about batches?
+    batch = val_transform(image=image)["image"]
+    return batch
+
+
+@app.post("/segmentation")
+def get_segmentation_map(
+    file: bytes = File(...), model_type: Optional[ModelTypes] = None
+):
     """Get segmentation maps from image file"""
 
-    # return data dict, convert to pydantic model (?)
-    data = get_segmentation(model, file, model_name=MODEL)
+    model_type = model_type or ModelTypes.PYTORCH
+
+    image = Image.open(io.BytesIO(file)).convert("RGB")
+    input_tensor = val_transform(image=np.array(image))["image"]
+
+    # call prediction and measure execution time
+    with record_execution_time() as elapsed:
+        if model_type == ModelTypes.PYTORCH:
+            out = pytorch_model.run(input_tensor)
+        elif model_type == ModelTypes.ONNX:
+            out = onnx_model.run(input_tensor.detach().cpu().numpy())
+        else:
+            raise ValueError("only pytorch and onnx models allowed")
+
+    if isinstance(out, torch.Tensor):
+        out = out.detach().cpu().numpy()
+
+    # TODO: compose batch if required
+    image = Image.fromarray(np.uint8(out * 255), "L")
+    dead_tree_fraction = float(out.sum() / out.size)
+
+    stats = PredictionStats(
+        fraction=dead_tree_fraction,
+        model_name=MODEL,
+        model_type=model_type.value,
+        elapsed=elapsed(),
+    )
 
     bytes_io = io.BytesIO()
-    data["image"].save(bytes_io, format="PNG")
+    image.save(bytes_io, format="PNG")
 
-    stats = {
-        "fraction": data["stats"]["fraction"],
-        "model_name": data["stats"]["model_name"],
-        "elapsed": data["stats"]["elapsed"],
-    }
-    return Response(bytes_io.getvalue(), headers=stats, media_type="image/png")
+    return Response(
+        bytes_io.getvalue(),
+        headers=predictionstats_to_str(stats),
+        media_type="image/png",
+    )
