@@ -78,10 +78,10 @@ class ONNXInference(Inference):
         return np.argmax(out, axis=1).squeeze()
 
 
-def get_model(model_path: str = "bestmodel.ckpt"):
-    model = SemSegment.load_from_checkpoint(model_path)
-    model.eval()
-    return model
+# def get_model(model_path: str = "bestmodel.ckpt"):
+#     model = SemSegment.load_from_checkpoint(model_path)
+#     model.eval()
+#     return model
 
 
 def split_image_into_tiles(image: Image):
