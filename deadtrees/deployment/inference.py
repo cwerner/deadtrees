@@ -38,9 +38,11 @@ class PyTorchInference(Inference):
 
         self._model = model
 
-    def run(self, input_tensor):
+    def run(self, input_tensor, device: str = "cpu"):
         if not isinstance(input_tensor, torch.Tensor):
             raise TypeError("no pytorch tensor provided")
+
+        self._model.to(device)
 
         if input_tensor.dim() == 3:
             input_tensor.unsqueeze_(0)

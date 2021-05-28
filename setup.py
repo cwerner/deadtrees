@@ -21,7 +21,7 @@ EXTRAS = {
         "pygeos",
         "bottleneck",
         "dask",
-        "rioxarray",
+        "rioxarray>=0.4",
         "xarray",
     ],
 }
