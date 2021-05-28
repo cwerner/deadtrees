@@ -4,11 +4,11 @@
 stages:
   createtiles:
     foreach:
-    #  - 2017
+      - 2017
       - 2019
     do:
       cmd: >-
-        mkdir data/processed;
+        mkdir -p data/processed.images.${item};
         gdal_retile.py 
         -csv locations.csv 
         -v -ps ${source_dim} ${source_dim}
