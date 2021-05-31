@@ -1,7 +1,10 @@
+# flake8: noqa: E402
 import argparse
 import warnings
 from pathlib import Path
 from typing import Optional, Union
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 import numpy as np
 import rioxarray
@@ -9,8 +12,6 @@ import torch
 from deadtrees.data.deadtreedata import val_transform
 from deadtrees.deployment.inference import ONNXInference, PyTorchInference
 from tqdm import tqdm
-
-warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def is_tilable(infile: Union[str, Path]):
@@ -74,6 +75,16 @@ def unmake_blocks_vectorized(x: np.ndarray, d: int, m: int, n: int) -> np.ndarra
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("infile", type=Path)
+
+    parser.add_argument(
+        "-m",
+        "--model",
+        dest="model",
+        type=Path,
+        default=Path("checkpoints/bestmodel.ckpt"),
+        help="model artefact",
+    )
+
     parser.add_argument(
         "-o",
         dest="outpath",
@@ -101,7 +112,7 @@ def main():
             return False if np.isin(t, [0, 255]).all() else True
 
     # inference = ONNXInference("checkpoints/bestmodel.onnx")
-    inference = PyTorchInference("checkpoints/bestmodel.ckpt")
+    inference = PyTorchInference(args.model)
 
     #
     # model.to(device)

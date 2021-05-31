@@ -84,3 +84,18 @@ stages:
       md5: f0bb5fb08c815bf826684b7d542f355d.dir
       size: 308807680
       nfiles: 11
+  createtiles@2017:
+    cmd: mkdir -p data/processed.images.2017; gdal_retile.py  -csv locations.csv  -v
+      -ps 8192 8192 -co "TILED=YES" -co "COMPRESS=LZW"  -targetDir data/processed.images.2017  data/raw/ortho_2017_ESPG3044.tif
+    deps:
+    - path: data/raw/ortho_2017_ESPG3044.tif
+      md5: a3dbc3a39bd6bb1c932ee887af198901
+      size: 381359748231
+    params:
+      params.yaml:
+        source_dim: 8192
+    outs:
+    - path: data/processed.images.2017
+      md5: 78c52e327b8dcd7dfbb5d43790326eb3.dir
+      size: 143381387397
+      nfiles: 1925

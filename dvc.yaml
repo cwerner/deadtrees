@@ -4,11 +4,11 @@
 stages:
   createtiles:
     foreach:
-    #  - 2017
+      - 2017
       - 2019
     do:
       cmd: >-
-        mkdir data/processed;
+        mkdir -p data/processed.images.${item};
         gdal_retile.py 
         -csv locations.csv 
         -v -ps ${source_dim} ${source_dim}
@@ -72,3 +72,26 @@ stages:
     - data/dataset/train_balanced_short
 
   # train:
+
+  # inference
+  inference:
+    foreach:
+      - 2017
+      - 2019
+    do:
+      cmd: >-
+        mkdir -p data/predicted.${item};
+        mkdir -p data/predicted.${item}_preview;
+        stdbuf -i0 -o0 -e0 python deadtrees/deployment/tiler.py --all -o data/predicted.${item} data/processed.images.${item};
+        gdal_merge.py 
+        -co 'COMPRESS=LZW' 
+        -co 'TILED=YES' 
+        -o data/predicted_mosaic_${item}.tif 
+        data/predicted.${item}/ortho_${item}_ESPG3044_*
+      deps:
+      - data/processed.images.${item}
+      outs:
+      - data/predicted.${item}
+      - data/predicted.${item}_preview
+      - data/predicted_mosaic_${item}.tif
+   
