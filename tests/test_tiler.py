@@ -1,7 +1,5 @@
-import io
 import tempfile
-from math import inf, prod
-from os import get_inheritable
+from math import prod
 from pathlib import Path
 from typing import Tuple, Union
 
@@ -55,35 +53,6 @@ examples = [example1, example2, example3]
 @pytest.mark.parametrize("a,b,result", [(10, 2, True), (5, 4, False), (2, 0, False)])
 def test_divisible_without_remainder(a, b, result):
     assert divisible_without_remainder(a, b) == result
-
-
-# def test_make_blocks_vectorized():
-#     source = np.array([np.arange(16).reshape(4, 4)]*3)
-#     target = np.array([[[[0, 1],
-#                     [4, 5]],
-#                    [[0, 1],
-#                     [4, 5]],
-#                    [[0, 1],
-#                     [4, 5]]],
-#                   [[[2, 3],
-#                     [6, 7]],
-#                    [[2, 3],
-#                     [6, 7]],
-#                    [[2, 3],
-#                     [6, 7]]],
-#                   [[[8, 9],
-#                     [12, 13]],
-#                    [[8, 9],
-#                     [12, 13]],
-#                    [[8, 9],
-#                     [12, 13]]],
-#                   [[[10, 11],
-#                     [14, 15]],
-#                    [[10, 11],
-#                     [14, 15]],
-#                    [[10, 11],
-#                     [14, 15]]]])
-#     np.testing.assert_array_equal(make_blocks_vectorized(source, 2), target)
 
 
 class TestBlocksVectorized:
