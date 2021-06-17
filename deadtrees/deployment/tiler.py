@@ -232,7 +232,7 @@ def main():
 
     args = parser.parse_args()
 
-    bs = 8
+    bs = 32
 
     INFILE = args.infile
 
@@ -258,7 +258,10 @@ def main():
 
         tiler = Tiler()
         tiler.load_file(INFILE)
-        batches = np.split(tiler.get_batches(), 256 // bs, axis=0)
+
+        batches = tiler.get_batches()
+        batches = np.array_split(batches, math.ceil(len(batches) / bs), axis=0)
+
         out_batches = []
 
         for b, batch in enumerate(tqdm(batches, desc=INFILE.name)):
