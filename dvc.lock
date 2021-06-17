@@ -99,3 +99,47 @@ stages:
       md5: 78c52e327b8dcd7dfbb5d43790326eb3.dir
       size: 143381387397
       nfiles: 1925
+  inference@2017:
+    cmd: mkdir -p data/predicted.2017; mkdir -p data/predicted.2017_preview; stdbuf
+      -i0 -o0 -e0 python deadtrees/deployment/tiler.py --all -o data/predicted.2017
+      data/processed.images.2017; gdal_merge.py  -co 'COMPRESS=LZW'  -co 'TILED=YES'  -o
+      data/predicted_mosaic_2017.tif  data/predicted.2017/ortho_2017_ESPG3044_*
+    deps:
+    - path: data/processed.images.2017
+      md5: 78c52e327b8dcd7dfbb5d43790326eb3.dir
+      size: 143381387397
+      nfiles: 1925
+    outs:
+    - path: data/predicted.2017
+      md5: 0fa9ac1bea4ac07d7a7c0835d9970ccf.dir
+      size: 622677074
+      nfiles: 1395
+    - path: data/predicted.2017_preview
+      md5: ff79762b14ac023237333d61d4d26df3.dir
+      size: 92731291854
+      nfiles: 1395
+    - path: data/predicted_mosaic_2017.tif
+      md5: 8dcc91d8bfe3ae428c26938887ddc18d
+      size: 849386546
+  inference@2019:
+    cmd: mkdir -p data/predicted.2019; mkdir -p data/predicted.2019_preview; stdbuf
+      -i0 -o0 -e0 python deadtrees/deployment/tiler.py --all -o data/predicted.2019
+      data/processed.images.2019; gdal_merge.py  -co 'COMPRESS=LZW'  -co 'TILED=YES'  -o
+      data/predicted_mosaic_2019.tif  data/predicted.2019/ortho_2019_ESPG3044_*
+    deps:
+    - path: data/processed.images.2019
+      md5: a3c48148cd75adc9b069207edf27b637.dir
+      size: 169321666330
+      nfiles: 1925
+    outs:
+    - path: data/predicted.2019
+      md5: 2de1815d33b469bbd5465ce121ed4b6c.dir
+      size: 499453393
+      nfiles: 1089
+    - path: data/predicted.2019_preview
+      md5: e4fecc7999cc0745e25d47f648d2f7e0.dir
+      size: 73081685754
+      nfiles: 1089
+    - path: data/predicted_mosaic_2019.tif
+      md5: 447a0b1b83b01986b52b360e5fbacc54
+      size: 806817013
