@@ -1,13 +1,82 @@
 import io
+import pathlib
 import textwrap
 from enum import Enum
 
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from models import PredictionStats
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from PIL import Image
+
+
+# Source: https://github.com/robmarkcole/streamlit-image-juxtapose.git
+def juxtapose(img1: str, img2: str, height: int = 1000):  # data
+
+    """Create a new timeline component.
+    Parameters
+    ----------
+    height: int or None
+        Height of the timeline in px
+    Returns
+    -------
+    static_component: Boolean
+        Returns a static component with a timeline
+    """
+
+    # load css + js
+    cdn_path = "https://cdn.knightlab.com/libs/juxtapose/latest"
+    css_block = f'<link rel="stylesheet" href="{cdn_path}/css/juxtapose.css">'
+    js_block = f'<script src="{cdn_path}/js/juxtapose.min.js"></script>'
+
+    # write html block
+    htmlcode = (
+        css_block
+        + """
+    """
+        + js_block
+        + """
+        <div id="foo" style="width: 95%; height: """
+        + str(height)
+        + '''px; margin: 1px;"></div>
+        <script>
+        slider = new juxtapose.JXSlider('#foo',
+            [
+                {
+                    src: "'''
+        + img1
+        + '''",
+                    label: 'source',
+                },
+                {
+                    src: "'''
+        + img2
+        + """",
+                    label: 'prediction',
+                }
+            ],
+            {
+                animate: true,
+                showLabels: true,
+                showCredits: true,
+                startingPosition: "50%",
+                makeResponsive: true
+            });
+        </script>
+    """
+    )
+    static_component = components.html(
+        htmlcode,
+        height=height,
+    )
+    return static_component
+
+
+STREAMLIT_STATIC_PATH = (
+    pathlib.Path(st.__path__[0]) / "static"
+)  # at venv/lib/python3.9/site-packages/streamlit/static
 
 # interact with FastAPI endpoint
 backend = "http://backend:8000/segmentation"
@@ -49,27 +118,39 @@ inf_types = {
     ModelTypes.ONNX: "ONNX",
 }
 
-itype = st.selectbox(
+col1, col2 = st.beta_columns(2)
+
+itype = col1.selectbox(
     "Inference type", list(inf_types.keys()), format_func=inf_types.get
 )
+
+vtype = col2.radio("Display", ("Side-by-side", "Slider"), index=1)
 
 
 input_image = st.file_uploader("Insert Image")  # image upload widget
 
 if st.button("Get Segmentation Map"):
 
-    col1, col2 = st.beta_columns(2)
-
     if input_image:
+
         result = process(input_image, f"{backend}?model_type={itype.value}")
 
         rgb_image = Image.open(input_image).convert("RGB")
         mask_image = Image.open(io.BytesIO(result["mask"])).convert("RGB")
 
-        col1.header("Source")
-        col1.image(rgb_image, use_column_width=True)
-        col2.header("Prediction")
-        col2.image(mask_image, use_column_width=True)
+        if vtype == "Side-by-side":
+            col1, col2 = st.beta_columns(2)
+            col1.header("Source")
+            col1.image(rgb_image, use_column_width=True)
+            col2.header("Prediction")
+            col2.image(mask_image, use_column_width=True)
+
+        else:
+            IMG1 = "source.png"
+            IMG2 = "prediction.png"
+            rgb_image.save(STREAMLIT_STATIC_PATH / IMG1)
+            mask_image.save(STREAMLIT_STATIC_PATH / IMG2)
+            juxtapose(IMG1, IMG2, height=600)
 
         stats = result["stats"]
         st.markdown(
