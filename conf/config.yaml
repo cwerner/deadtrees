@@ -1,12 +1,11 @@
 train:
-  learning_rate: 0.00015
+  learning_rate: 0.0001 #0.00015
   run_test: false
-  tversky_beta: 0.7  # alpha: 0.3
 
 trainer:
   gpus: 1
   min_epochs: 1
-  max_epochs: 10
+  max_epochs: 1000
   precision: 16
   progress_bar_refresh_rate: 10
   terminate_on_nan: True
