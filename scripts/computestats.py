@@ -1,5 +1,6 @@
 import argparse
 import io
+import itertools
 from pathlib import Path
 
 import webdataset as wds
@@ -8,7 +9,26 @@ import numpy as np
 import PIL
 import torch
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+from torchvision.datasets import ImageFolder
+from tqdm import tqdm
+
+
+class TifDataset(Dataset):
+    def __init__(self, image_paths, transform=None):
+        self.image_paths = image_paths
+        self.transform = transform
+
+    def __getitem__(self, index):
+        image_path = self.image_paths[index]
+        x = Image.open(image_path)
+        if self.transform is not None:
+            x = self.transform(x)
+        return x
+
+    def __len__(self):
+        return len(self.image_paths)
 
 
 def image_decoder(data):
@@ -29,7 +49,7 @@ def sample_decoder(sample, img_suffix="rgb.png"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("datapath", type=Path)
+    parser.add_argument("datapath", type=Path, nargs="+")
     args = parser.parse_args()
 
     transform = transforms.Compose(
@@ -37,28 +57,41 @@ def main():
             transforms.ToTensor(),
         ]
     )
-    print(f"Scanning path: {Path(args.datapath)}")
+    print(f"Scanning path(s): {args.datapath}")
 
-    files = [str(x) for x in sorted(args.datapath.glob("*.tar"))]
-    print("\nParsing files:")
-    print(files)
+    if isinstance(args.datapath, list):
+        tar_files = sorted(
+            list(itertools.chain(*[x.glob("*.tar") for x in args.datapath]))
+        )
+        tif_files = sorted(
+            list(itertools.chain(*[x.glob("*.tif") for x in args.datapath]))
+        )
+    else:
+        tar_files = sorted(args.datapath.glob("*.tar"))
+        tif_files = sorted(args.datapath.glob("*.tif"))
 
-    dataset = (
-        wds.WebDataset(files)
-        .map(sample_decoder)
-        .rename(image="rgb.png", mask="msk.png", stats="txt")
-        .map_dict(image=transform)
-        .to_tuple("image")
-    )
+    if len(tar_files) > len(tif_files):
+        # webdataset
+        dataset = (
+            wds.WebDataset([str(x) for x in tar_files])
+            .map(sample_decoder)
+            .rename(image="rgb.png", mask="msk.png", stats="txt")
+            .map_dict(image=transform)
+            .to_tuple("image")
+        )
+    else:
+        # plain source tif dataset
+        dataset = TifDataset(tif_files, transform=transform)
+        # ,
+        #     is_valid_file=lambda x: Path(x).suffix == ".tif"
+        #     )
 
     dataloader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False)
 
     mean, std = torch.zeros(3), torch.zeros(3)
 
     print("\nCalculating MEAN")
-    for i, data in enumerate(dataloader):
-        if i % 1000 == 0:
-            print(i, end=" ", flush=True)
+    for i, data in enumerate(tqdm(dataloader)):
         data = data[0].squeeze(0)
         if i == 0:
             size = data.size(1) * data.size(2)
@@ -69,9 +102,7 @@ def main():
     mean_unsqueezed = mean.unsqueeze(1).unsqueeze(2)
 
     print("\nCalculating STD")
-    for i, data in enumerate(dataloader):
-        if i % 1000 == 0:
-            print(i, end=" ", flush=True)
+    for i, data in enumerate(tqdm(dataloader)):
         data = data[0].squeeze(0)
         std += ((data - mean_unsqueezed) ** 2).sum((1, 2)) / size
 
