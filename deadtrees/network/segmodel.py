@@ -2,7 +2,8 @@
 
 import logging
 
-import monai
+from monai.losses import DiceCELoss
+from monai.metrics import DiceMetric
 
 import pytorch_lightning as pl
 import torch
@@ -22,7 +23,16 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         super().__init__(**network_conf)
         self.save_hyperparameters()  # type: ignore
 
-        self.criterion = monai.losses.DiceCELoss(softmax=True)
+        self.criterion = DiceCELoss(
+            softmax=True,
+            include_background=False,
+            to_onehot_y=True,
+        )
+
+        self.dice_metric = DiceMetric(
+            include_background=False,
+            reduction="mean",
+        )
 
     def get_progress_bar_dict(self):
         """Hack to remove v_num from progressbar"""
@@ -34,14 +44,18 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
     def training_step(self, batch, batch_idx):
         img, mask, stats = batch
         img = img.float()
-        mask = mask.long()
+        mask = mask.long().unsqueeze(1)
         pred = self(img)
 
-        # TODO: simplify
-        mask2 = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
+        loss = self.criterion(pred, mask)
 
-        loss = self.criterion(pred, mask2)
+        # TODO: simplify one-hot step
+        dice_score, _ = self.dice_metric(
+            y_pred=pred.softmax(dim=1),
+            y=torch.zeros_like(pred).scatter_(1, mask, 1),
+        )
 
+        self.log("train/dice", dice_score)
         self.log("train/total_loss", loss)
 
         return loss
@@ -52,10 +66,14 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         mask = mask.long()
         pred = self(img)
 
-        mask2 = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
+        loss = self.criterion(pred, mask.unsqueeze(1))
 
-        loss = self.criterion(pred, mask2)
+        dice_score, _ = self.dice_metric(
+            y_pred=pred.softmax(dim=1),
+            y=torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1),
+        )
 
+        self.log("val/dice", dice_score)
         self.log("val/total_loss", loss)
 
         if batch_idx == 0:
@@ -90,11 +108,12 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         mask = mask.long()
         pred = self(img)
 
-        mask2 = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
+        dice_score, _ = self.dice_metric(
+            y_pred=pred.softmax(dim=1),
+            y=torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1),
+        )
 
-        loss = self.criterion(pred, mask2)
-
-        self.log("test/total_loss", loss)
+        self.log("test/dice", dice_score)
 
     def configure_optimizers(self):
         opt = torch.optim.Adam(
