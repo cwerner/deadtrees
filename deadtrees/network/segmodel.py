@@ -3,7 +3,7 @@
 import logging
 from collections import Counter
 
-from monai.losses import DiceCELoss
+from monai.losses import DiceCELoss, GeneralizedDiceLoss
 from monai.metrics import DiceMetric
 
 import pandas as pd
@@ -27,7 +27,20 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         self.apply(initialize_weights)
 
-        self.criterion = DiceCELoss(
+        # CHECK:
+        # - softmax yes/ no ?
+        # - incl_background yes/ no ?
+
+        # self.criterion = DiceCELoss(
+        #     softmax=True,
+        #     include_background=False,
+        #     to_onehot_y=True,
+        # )
+
+        # Reference:
+        # Sudre, C. et. al. (2017) Generalised Dice overlap as a deep learning loss
+        #    function for highly unbalanced segmentations. DLMIA 2017.
+        self.criterion = GeneralizedDiceLoss(
             softmax=True,
             include_background=False,
             to_onehot_y=True,
@@ -35,6 +48,11 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         self.dice_metric = DiceMetric(
             include_background=False,
+            reduction="mean",
+        )
+
+        self.dice_metric_with_bg = DiceMetric(
+            include_background=True,
             reduction="mean",
         )
 
@@ -59,13 +77,15 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         loss = self.criterion(pred, mask)
 
+        y_pred = pred.softmax(dim=1)
+        y = torch.zeros_like(pred).scatter_(1, mask, 1)
+
         # TODO: simplify one-hot step
-        dice_score, _ = self.dice_metric(
-            y_pred=pred.softmax(dim=1),
-            y=torch.zeros_like(pred).scatter_(1, mask, 1),
-        )
+        dice_score, _ = self.dice_metric(y_pred=y_pred, y=y)
+        dice_score_with_bg, _ = self.dice_metric_with_bg(y_pred=y_pred, y=y)
 
         self.log("train/dice", dice_score)
+        self.log("train/dice_with_bg", dice_score_with_bg)
         self.log("train/total_loss", loss)
 
         # track training batch files
@@ -81,12 +101,15 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         loss = self.criterion(pred, mask.unsqueeze(1))
 
-        dice_score, _ = self.dice_metric(
-            y_pred=pred.softmax(dim=1),
-            y=torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1),
-        )
+        y_pred = pred.softmax(dim=1)
+        y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
+
+        # TODO: simplify one-hot step
+        dice_score, _ = self.dice_metric(y_pred=y_pred, y=y)
+        dice_score_with_bg, _ = self.dice_metric_with_bg(y_pred=y_pred, y=y)
 
         self.log("val/dice", dice_score)
+        self.log("val/dice_with_bg", dice_score_with_bg)
         self.log("val/total_loss", loss)
 
         if batch_idx == 0:
@@ -124,12 +147,15 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         mask = mask.long()
         pred = self(img)
 
-        dice_score, _ = self.dice_metric(
-            y_pred=pred.softmax(dim=1),
-            y=torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1),
-        )
+        y_pred = pred.softmax(dim=1)
+        y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
+
+        # TODO: simplify one-hot step
+        dice_score, _ = self.dice_metric(y_pred=y_pred, y=y)
+        dice_score_with_bg, _ = self.dice_metric_with_bg(y_pred=y_pred, y=y)
 
         self.log("test/dice", dice_score)
+        self.log("test/dice_with_bg", dice_score_with_bg)
 
         # track validation batch files
         self.stats["test"].update([x["file"] for x in stats])
