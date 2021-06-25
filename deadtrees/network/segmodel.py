@@ -1,10 +1,12 @@
 # source: https://github.com/PyTorchLightning/pytorch-lightning-bolts (Apache2)
 
 import logging
+from collections import Counter
 
 from monai.losses import DiceCELoss
 from monai.metrics import DiceMetric
 
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 from deadtrees.visualization.helper import show
@@ -23,6 +25,8 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         super().__init__(**network_conf)
         self.save_hyperparameters()  # type: ignore
 
+        self.apply(initialize_weights)
+
         self.criterion = DiceCELoss(
             softmax=True,
             include_background=False,
@@ -33,6 +37,12 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
             include_background=False,
             reduction="mean",
         )
+
+        self.stats = {
+            "train": Counter(),
+            "val": Counter(),
+            "test": Counter(),
+        }
 
     def get_progress_bar_dict(self):
         """Hack to remove v_num from progressbar"""
@@ -57,6 +67,9 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         self.log("train/dice", dice_score)
         self.log("train/total_loss", loss)
+
+        # track training batch files
+        self.stats["train"].update([x["file"] for x in stats])
 
         return loss
 
@@ -100,6 +113,9 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
                         commit=False,
                     )
 
+        # track validation batch files
+        self.stats["val"].update([x["file"] for x in stats])
+
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -115,6 +131,20 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         self.log("test/dice", dice_score)
 
+        # track validation batch files
+        self.stats["test"].update([x["file"] for x in stats])
+
+    def teardown(self, stage=None) -> None:
+        print(f"len: {len(self.stats['train'])}")
+        pd.DataFrame.from_records(
+            list(dict(self.stats["train"]).items()), columns=["filename", "count"]
+        ).to_csv("train_stats.csv", index=False)
+
+        print(f"len: {len(self.stats['val'])}")
+        pd.DataFrame.from_records(
+            list(dict(self.stats["val"]).items()), columns=["filename", "count"]
+        ).to_csv("val_stats.csv", index=False)
+
     def configure_optimizers(self):
         opt = torch.optim.Adam(
             self.parameters(),
@@ -122,3 +152,12 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         )
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=10)
         return [opt], [sch]
+
+
+def initialize_weights(m):
+    if getattr(m, "bias", None) is not None:
+        torch.nn.init.constant_(m.bias, 0)
+    if isinstance(m, (torch.nn.Conv2d, torch.nn.Linear)):
+        torch.nn.init.kaiming_normal_(m.weight)
+    for c in m.children():
+        initialize_weights(c)
