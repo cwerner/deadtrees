@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import albumentations as A
 import webdataset as wds
+from albumentations.augmentations.transforms import RandomBrightnessContrast
 from albumentations.pytorch import ToTensorV2
 
 import numpy as np
@@ -119,9 +120,14 @@ def inv_normalize(x):
 train_transform = A.Compose(
     [
         # A.Resize(256,256),
-        A.VerticalFlip(p=0.5),
-        A.HorizontalFlip(p=0.5),
+        A.OneOf([A.HorizontalFlip(), A.VerticalFlip()], p=0.5),
         A.RandomRotate90(p=0.5),
+        A.RandomBrightnessContrast(
+            p=0.5,
+            brightness_limit=0.2,
+            contrast_limit=0.15,
+            brightness_by_max=False,
+        ),
         A.Normalize(mean=DeadtreeDatasetConfig.mean, std=DeadtreeDatasetConfig.std),
         ToTensorV2(),
     ]
