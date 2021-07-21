@@ -111,16 +111,16 @@ stages:
       nfiles: 1925
     outs:
     - path: data/predicted.2017
-      md5: 08eb29659a4aa6386d9777e3d591754b.dir
-      size: 635081579
+      md5: 03accabe790944174dfe0d5b59f78a9d.dir
+      size: 625167771
       nfiles: 1395
     - path: data/predicted.2017_preview
-      md5: 7d274667139834382d3371fd87a271d8.dir
+      md5: fdd75c06b1c558994e9bf43e5c1d46ce.dir
       size: 92731291854
       nfiles: 1395
     - path: data/predicted_mosaic_2017.tif
-      md5: da018740476c189d48ba1c4da4c96821
-      size: 861791051
+      md5: c48627137e12a9b3be38d07564f0a212
+      size: 852005583
   inference@2019:
     cmd: mkdir -p data/predicted.2019; mkdir -p data/predicted.2019_preview; stdbuf
       -i0 -o0 -e0 python deadtrees/deployment/tiler.py --all -o data/predicted.2019
@@ -133,13 +133,13 @@ stages:
       nfiles: 1925
     outs:
     - path: data/predicted.2019
-      md5: 86282b7012c3167d2ad854bb46d4bfcd.dir
-      size: 503364215
+      md5: c11c8b07d66915a7d0f134a86da83522.dir
+      size: 504032171
       nfiles: 1089
     - path: data/predicted.2019_preview
-      md5: 6ac0071571c104fd004436ea364c1dbd.dir
+      md5: bc98ec08d56fc2fb6638385f3dbf4b8f.dir
       size: 73081685754
       nfiles: 1089
     - path: data/predicted_mosaic_2019.tif
-      md5: c7bc54286b30358278ba867e41d616a2
-      size: 810727835
+      md5: 8f61777c5f40aa8be9f516a611debb27
+      size: 811495979
