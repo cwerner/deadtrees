@@ -46,6 +46,8 @@ def main(config: DictConfig) -> Trainer:
         config.datamodule,
         data_dir=get_env("TRAIN_DATASET_PATH"),
         pattern=config.datamodule.pattern,
+        pattern_extra=config.datamodule.get("pattern_extra", None),
+        batch_size_extra=config.datamodule.get("batch_size_extra", None),
     )
     datamodule.setup()
 

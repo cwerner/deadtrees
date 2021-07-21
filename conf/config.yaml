@@ -1,6 +1,6 @@
 train:
   learning_rate: 0.0001 #0.00015
-  run_test: false
+  run_test: true
 
 trainer:
   gpus: 1
@@ -12,7 +12,7 @@ trainer:
 
 defaults:
     - callbacks: default_callbacks
-    - datamodule: deadtrees
+    - datamodule: deadtrees_multi_datasets
     - model: default
     - logger: wandb
 

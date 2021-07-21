@@ -3,7 +3,7 @@ import logging
 import math
 from functools import partial
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional
 
 import albumentations as A
 import webdataset as wds
@@ -13,6 +13,7 @@ import numpy as np
 import PIL
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning.trainer.supporters import CombinedLoader
 from torch.utils.data import DataLoader
 
 logger = logging.getLogger(__name__)
@@ -156,6 +157,8 @@ class DeadtreesDataModule(pl.LightningDataModule):
         self,
         data_dir,
         pattern,
+        pattern_extra: Optional[List[str]] = None,
+        batch_size_extra: Optional[List[int]] = None,
         train_dataloader_conf: Optional[DictConfig] = None,
         val_dataloader_conf: Optional[DictConfig] = None,
         test_dataloader_conf: Optional[DictConfig] = None,
@@ -165,6 +168,23 @@ class DeadtreesDataModule(pl.LightningDataModule):
         self.train_dataloader_conf = train_dataloader_conf or OmegaConf.create()
         self.val_dataloader_conf = val_dataloader_conf or OmegaConf.create()
         self.test_dataloader_conf = test_dataloader_conf or OmegaConf.create()
+
+        self.data_shards_extra = []
+        self.batch_size_extra = None
+
+        if pattern_extra:
+            for pcnt, p in enumerate(pattern_extra):
+                self.data_shards_extra.append(sorted(Path(data_dir).glob(p)))
+            if batch_size_extra:
+                if len(batch_size_extra) != len(pattern_extra):
+                    raise ValueError(
+                        "Len of <pattern_extra> and <batch_size_extra> don't match"
+                    )
+                self.batch_size_extra = batch_size_extra
+            else:
+                raise ValueError(
+                    "<pattern_extra> provided but no <batch_size_extra> ratio found"
+                )
 
     def setup(
         self,
@@ -181,68 +201,131 @@ class DeadtreesDataModule(pl.LightningDataModule):
             f"Shard size: {shard_size} (estimate base on file: {train_shards[0]})"
         )
 
-        self.train_data = (
-            wds.WebDataset(
-                train_shards,
-                length=len(train_shards)
-                * shard_size
-                // self.train_dataloader_conf["batch_size"],
-            )
-            .shuffle(shard_size)
-            .map(sample_decoder)
-            .rename(image="rgb.png", mask="msk.png", stats="txt")
-            .map(partial(transform, transform_func=train_transform))
-            .to_tuple("image", "mask", "stats")
-        )
-
-        self.val_data = (
-            wds.WebDataset(
-                valid_shards,
-                length=len(valid_shards)
-                * shard_size
-                // self.val_dataloader_conf["batch_size"],
-            )
-            .shuffle(0)
-            .map(sample_decoder)
-            .rename(image="rgb.png", mask="msk.png", stats="txt")
-            .map(partial(transform, transform_func=val_transform))
-            .to_tuple("image", "mask", "stats")
-        )
-
-        if test_shards:
-            self.test_data = (
+        def build_dataset(
+            shards: List[str],
+            bs: int,
+            transform_func: Callable,
+            shuffle: Optional[int] = 64,
+            shard_size: Optional[int] = 64,
+        ) -> wds.WebDataset:
+            return (
                 wds.WebDataset(
-                    test_shards,
-                    length=len(test_shards)
-                    * shard_size
-                    // self.test_dataloader_conf["batch_size"],
+                    shards,
+                    length=len(shards) * shard_size // bs,
                 )
-                .shuffle(0)
+                .shuffle(shuffle)
                 .map(sample_decoder)
                 .rename(image="rgb.png", mask="msk.png", stats="txt")
-                .map(partial(transform, transform_func=val_transform))
+                .map(partial(transform, transform_func=transform_func))
                 .to_tuple("image", "mask", "stats")
             )
 
-    def train_dataloader(self) -> DataLoader:
-        return DataLoader(
+        self.train_data = build_dataset(
+            train_shards,
+            self.train_dataloader_conf["batch_size"],
+            transform_func=train_transform,
+            shuffle=shard_size,
+            shard_size=shard_size,
+        )
+
+        self.val_data = build_dataset(
+            valid_shards,
+            self.val_dataloader_conf["batch_size"],
+            transform_func=val_transform,
+            shuffle=0,
+            shard_size=shard_size,
+        )
+
+        if test_shards:
+            self.test_data = build_dataset(
+                test_shards,
+                self.test_dataloader_conf["batch_size"],
+                transform_func=val_transform,
+                shuffle=0,
+                shard_size=shard_size,
+            )
+
+        self.extra_train_data = []
+        self.extra_valid_data = []
+
+        if len(self.data_shards_extra) > 0:
+            for bs, shards in zip(self.batch_size_extra, self.data_shards_extra):
+                # split shards between train and val by the same proportion as the main dataset
+                train_frac = len(train_shards) / (len(train_shards) + len(valid_shards))
+                valid_frac = 1 - train_frac
+
+                extra_train_shards, extra_valid_shards, _ = split_shards(
+                    shards, [train_frac, valid_frac]
+                )
+
+                self.extra_train_data.append(
+                    build_dataset(
+                        extra_train_shards,
+                        bs,
+                        transform_func=train_transform,
+                        shuffle=shard_size,
+                        shard_size=shard_size,
+                    )
+                )
+
+                self.extra_valid_data.append(
+                    build_dataset(
+                        extra_valid_shards,
+                        bs,
+                        transform_func=val_transform,
+                        shuffle=0,
+                        shard_size=shard_size,
+                    )
+                )
+
+    def train_dataloader(self) -> Dict[str, DataLoader]:
+        main_loader = DataLoader(
             self.train_data.batched(
-                self.train_dataloader_conf["batch_size"], partial=False
+                self.train_dataloader_conf["batch_size"] - sum(self.batch_size_extra),
+                partial=False,
             ),
             batch_size=None,
             pin_memory=True,
             num_workers=self.train_dataloader_conf["num_workers"],
         )
 
-    def val_dataloader(self) -> DataLoader:
-        return DataLoader(
+        loaders = {"main": main_loader}
+        for cnt, (bs, train_data) in enumerate(
+            zip(self.batch_size_extra, self.extra_train_data)
+        ):
+            loaders[f"extra_{cnt}"] = DataLoader(
+                train_data.batched(bs, partial=False),
+                batch_size=None,
+                pin_memory=True,
+                num_workers=bs // 2,
+            )
+
+        return loaders
+
+    def val_dataloader(self) -> List[DataLoader]:
+        main_loader = DataLoader(
             self.val_data.batched(
-                self.val_dataloader_conf["batch_size"], partial=False
+                self.val_dataloader_conf["batch_size"] - sum(self.batch_size_extra),
+                partial=False,
             ),
             batch_size=None,
             pin_memory=True,
             num_workers=self.val_dataloader_conf["num_workers"],
         )
+
+        loaders = {"main": main_loader}
+        for cnt, (bs, val_data) in enumerate(
+            zip(self.batch_size_extra, self.extra_valid_data)
+        ):
+            loaders[f"extra_{cnt}"] = DataLoader(
+                val_data.batched(bs, partial=False),
+                batch_size=None,
+                pin_memory=True,
+                num_workers=bs // 2,
+            )
+
+        combined_loaders = CombinedLoader(loaders, "max_size_cycle")
+        return combined_loaders
 
     def test_dataloader(self) -> DataLoader:
         return DataLoader(

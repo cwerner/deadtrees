@@ -1,0 +1,19 @@
+# @package _global_
+datamodule:
+  _target_: deadtrees.data.deadtreedata.DeadtreesDataModule
+  pattern: "train-balanced-short-000*.tar"
+  pattern_extra: ["ds2-train-000*.tar", "ds3-train-000*.tar"]
+  batch_size_extra: [2, 2]
+  train_dataloader_conf:
+    batch_size: 8
+    num_workers: 4
+  val_dataloader_conf:
+    batch_size: 8
+    num_workers: 4
+  test_dataloader_conf:
+    batch_size: 8
+    num_workers: 4
+
+model:
+  network_conf:
+    num_classes: 2

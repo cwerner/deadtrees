@@ -70,7 +70,17 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         return tqdm_dict
 
     def training_step(self, batch, batch_idx):
-        img, mask, stats = batch
+        img, mask, stats = batch["main"]
+
+        # grab extra datasets and concat tensors
+        extra_imgs, extra_masks, extra_stats = list(
+            zip(*[v for k, v in batch.items() if k.startswith("extra")])
+        )
+        if len(extra_imgs) > 0:
+            img = torch.cat((img, *extra_imgs), dim=0)
+            mask = torch.cat((mask, *extra_masks), dim=0)
+            stats.extend(sum(extra_stats, []))
+
         img = img.float()
         mask = mask.long().unsqueeze(1)
         pred = self(img)
@@ -94,7 +104,18 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         return loss
 
     def validation_step(self, batch, batch_idx):
-        img, mask, stats = batch
+
+        img, mask, stats = batch["main"]
+
+        # grab extra datasets and concat tensors
+        extra_imgs, extra_masks, extra_stats = list(
+            zip(*[v for k, v in batch.items() if k.startswith("extra")])
+        )
+        if len(extra_imgs) > 0:
+            img = torch.cat((img, *extra_imgs), dim=0)
+            mask = torch.cat((mask, *extra_masks), dim=0)
+            stats.extend(sum(extra_stats, []))
+
         img = img.float()
         mask = mask.long()
         pred = self(img)
@@ -117,7 +138,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
                 x=img.cpu(),
                 y=mask.cpu(),
                 y_hat=pred.cpu(),
-                n_samples=4,
+                n_samples=8,
                 stats=stats,
                 dpi=72,
                 display=False,
