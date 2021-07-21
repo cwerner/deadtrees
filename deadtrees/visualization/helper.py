@@ -124,7 +124,7 @@ def show(
     fig, ax = plt.subplots(
         n_samples,
         len(items),
-        figsize=(fig_size_y, fig_size_x),
+        figsize=(fig_size_x, fig_size_y),
         sharex=True,
         sharey=True,
         gridspec_kw={"wspace": 0, "hspace": 0},
