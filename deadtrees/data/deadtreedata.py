@@ -230,7 +230,7 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 self.train_dataloader_conf["batch_size"], partial=False
             ),
             batch_size=None,
-            pin_memory=True,
+            pin_memory=False,
             num_workers=self.train_dataloader_conf["num_workers"],
         )
 
@@ -240,7 +240,7 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 self.val_dataloader_conf["batch_size"], partial=False
             ),
             batch_size=None,
-            pin_memory=True,
+            pin_memory=False,
             num_workers=self.val_dataloader_conf["num_workers"],
         )
 
@@ -250,6 +250,6 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 self.test_dataloader_conf["batch_size"], partial=False
             ),
             batch_size=None,
-            pin_memory=True,
+            pin_memory=False,
             num_workers=self.test_dataloader_conf["num_workers"],
         )
