@@ -9,9 +9,9 @@ from monai.metrics import DiceMetric
 import pandas as pd
 import pytorch_lightning as pl
 import torch
+from deadtrees.network.unet import UNet
 from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
-from pl_bolts.models.vision.unet import UNet
 
 logger = logging.getLogger(__name__)
 
