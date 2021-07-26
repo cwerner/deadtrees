@@ -17,7 +17,11 @@ logger = logging.getLogger(__name__)
 
 def is_running_from_ipython() -> bool:
     """Check if code is executed in ipython (jupyter?) environment"""
-    from IPython import get_ipython
+
+    try:
+        from IPython import get_ipython
+    except ModuleNotFoundError:
+        return False
 
     return get_ipython() is not None
 
