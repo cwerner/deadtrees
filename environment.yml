@@ -1,0 +1,33 @@
+name: deadtrees
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.9
+  - pip
+  - cudatoolkit=11.1
+  - matplotlib
+  - jupyter
+  - jupyterlab
+  - pytorch>=1.9
+  - torchvision>=0.10
+  - opencv
+  - nb_conda_kernels
+  - numpy
+  - pandas
+  - albumentations
+  - dvc-s3 
+  - rich 
+  - python-dotenv 
+  - pydantic 
+  - wandb 
+  - networkx=2.5
+  - pip:
+    - webdataset
+    - monai==0.5.3
+    - hydra-core --pre
+    - hydra-colorlog --pre
+    - pytorch-lightning 
+    #- --no-deps -e .
+    
