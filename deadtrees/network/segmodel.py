@@ -3,29 +3,32 @@
 import logging
 from collections import Counter
 
+import segmentation_models_pytorch as smp
 from monai.losses import DiceCELoss, GeneralizedDiceLoss
 from monai.metrics import DiceMetric
 
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-from deadtrees.network.unet import UNet
 from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
 
 logger = logging.getLogger(__name__)
 
 
-class SemSegment(UNet, pl.LightningModule):  # type: ignore
+class SemSegment(pl.LightningModule):  # type: ignore
     def __init__(
         self,
         train_conf: DictConfig,
         network_conf: DictConfig,
     ):
-        super().__init__(**network_conf)
-        self.save_hyperparameters()  # type: ignore
+        super().__init__()
 
-        self.apply(initialize_weights)
+        Model = smp.UnetPlusPlus if network_conf.architecture == "unet" else smp.Unet
+        del network_conf.architecture
+        self.model = Model(**network_conf)
+        # self.model.apply(initialize_weights)
+        self.save_hyperparameters()  # type: ignore
 
         # CHECK:
         # - softmax yes/ no ?
@@ -73,7 +76,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         img, mask, stats = batch
         img = img.float()
         mask = mask.long().unsqueeze(1)
-        pred = self(img)
+        pred = self.model(img)
 
         loss = self.criterion(pred, mask)
 
@@ -97,7 +100,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         img, mask, stats = batch
         img = img.float()
         mask = mask.long()
-        pred = self(img)
+        pred = self.model(img)
 
         loss = self.criterion(pred, mask.unsqueeze(1))
 
@@ -145,7 +148,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         img, mask, stats = batch
         img = img.float()
         mask = mask.long()
-        pred = self(img)
+        pred = self.model(img)
 
         y_pred = pred.softmax(dim=1)
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
