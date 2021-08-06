@@ -3,13 +3,13 @@
 import logging
 from collections import Counter
 
+import segmentation_models_pytorch as smp
 from monai.losses import DiceCELoss, GeneralizedDiceLoss
 from monai.metrics import DiceMetric
 
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-from deadtrees.network.unet import UNet
 from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
 
@@ -24,8 +24,10 @@ class SemSegment(pl.LightningModule):  # type: ignore
     ):
         super().__init__()
 
-        self.model = UNet(**network_conf)
-        self.model.apply(initialize_weights)
+        Model = smp.UnetPlusPlus if network_conf.architecture == "unet" else smp.Unet
+        del network_conf.architecture
+        self.model = Model(**network_conf)
+        # self.model.apply(initialize_weights)
         self.save_hyperparameters()  # type: ignore
 
         # CHECK:
