@@ -38,7 +38,6 @@ setup(
         "python-dotenv",
         "hydra-core>=1.1.0",
         "hydra-colorlog>=1.1.0",
-        "monai>=0.5.3",
         "pydantic",
         "torch>=1.8.1",
         "torchvision>=0.9.1",
@@ -46,6 +45,7 @@ setup(
         "rich",
         "tqdm",
         "webdataset>=0.1.62",
+        "segmentation_models_pytorch>=0.2.0",
     ],
     # install in editable mode: pip install -e ".[train,preprocess]" or
     #                           pip install -e ".[all]"
