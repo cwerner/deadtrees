@@ -1,5 +1,5 @@
 program: scripts/train.py
-method: bayes
+method: grid #bayes
 command:
   - ${env}
   - ${interpreter}
@@ -9,22 +9,25 @@ metric:
   name: val/total_loss
   goal: minimize
 parameters:
-  train.learning_rate:
-    distribution: log_uniform
-    min: -11
-    max: -6
+  # train.learning_rate:
+  #   distribution: log_uniform
+  #   min: -11
+  #   max: -6
 
   model.network_conf.architecture:
     distribution: categorical
     values:
       - "unet"
-      - "unetplusplus"
+      - "unet++"
+      - "resunet"
+      - "resunet++"
+      - "efficientunet++"
   
   model.network_conf.encoder_name:
     distribution: categorical
     values:
       - "resnet34"
-      - "resnet50" 
-      - "efficientnet-b5"
-      - "efficientnet-b6"
+      #- "resnet50" 
+      #- "efficientnet-b5"
+      #- "efficientnet-b6"
       - "efficientnet-b7"
