@@ -1,8 +1,8 @@
-from segmentation_models_pytorch.base import modules as md
-
+# from segmentation_models_pytorch.base import modules as md
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from deadtrees.network.extra import modules as md
 
 
 class DecoderBlock(nn.Module):

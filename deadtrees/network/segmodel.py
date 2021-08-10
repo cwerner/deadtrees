@@ -8,6 +8,7 @@ import segmentation_models_pytorch as smp
 import pandas as pd
 import pytorch_lightning as pl
 import torch
+from deadtrees.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
 from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
 
@@ -27,9 +28,15 @@ class SemSegment(pl.LightningModule):  # type: ignore
             Model = smp.Unet
         elif architecture in ["unetplusplus", "unet++"]:
             Model = smp.UnetPlusPlus
+        elif architecture == "resunet":
+            Model = ResUnet
+        elif architecture in ["resunetplusplus", "resunet++"]:
+            Model = ResUnetPlusPlus
+        elif architecture in ["efficientunetplusplus", "efficientunet++"]:
+            Model = EfficientUnetPlusPlus
         else:
             raise NotImplementedError(
-                "Currently only Unet and UnetPlusPLus architectures are supported"
+                "Currently only Unet, ResUnet, Unet++, ResUnet++, and EfficientUnet++ architectures are supported"
             )
 
         del network_conf.architecture
