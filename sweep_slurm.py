@@ -3,7 +3,6 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import File
 
 import yaml
 
@@ -22,8 +21,8 @@ node_list = result.stdout.decode("utf-8").split("\n")[:-1]
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("sweep_config", type=argparse.FileType)
-    parser.add_argument("train_script", type=argparse.FileType)
+    parser.add_argument("sweep_config", type=str)
+    parser.add_argument("train_script", type=str)
     parser.add_argument("project", type=str)
 
     args = parser.parse_args()

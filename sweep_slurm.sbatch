@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=2
-#SBATCH --ntasks-per-node=2
+#SBATCH --ntasks-per-node=1
+#SBATCH --exclude=kea31
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=ccgp
 #SBATCH --time=4:00:0
