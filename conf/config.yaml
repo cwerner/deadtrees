@@ -5,7 +5,7 @@ train:
 trainer:
   gpus: 1
   min_epochs: 1
-  max_epochs: 1000
+  max_epochs: 200
   precision: 16
   progress_bar_refresh_rate: 10
   terminate_on_nan: True
