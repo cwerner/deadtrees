@@ -159,7 +159,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
                 x=img.cpu(),
                 y=mask.cpu(),
                 y_hat=pred.cpu(),
-                n_samples=8,
+                n_samples=min(img.shape[0], 8),
                 stats=stats,
                 dpi=72,
                 display=False,
