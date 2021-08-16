@@ -1,36 +1,33 @@
-program: train.py
-method: bayes
+program: scripts/train.py
+method: grid #bayes
 command:
   - ${env}
   - ${interpreter}
   - ${program}
   - ${args_no_hyphens}
 metric:
-  name: val_loss
+  name: val/total_loss
   goal: minimize
 parameters:
-  data.train_dataloader_conf.batch_size:
-    distribution: int_uniform
-    min: 2
-    max: 8
-  train.learning_rate:
-    distribution: log_uniform
-    min: -10
-    max: -3
-  network.network_conf.num_layers:
-    distribution: int_uniform
-    min: 2
-    max: 6
-  network.network_conf.features_start:
+  # train.learning_rate:
+  #   distribution: log_uniform
+  #   min: -11
+  #   max: -6
+
+  model.network_conf.architecture:
     distribution: categorical
     values:
-      - 8
-      - 16
-      - 32
-      - 64
-      - 128
-  network.network_conf.bilinear:
+      - "unet"
+      - "unet++"
+      - "resunet"
+      - "resunet++"
+      - "efficientunet++"
+  
+  model.network_conf.encoder_name:
     distribution: categorical
     values:
-      - True
-      - False
+      - "resnet34"
+      #- "resnet50" 
+      #- "efficientnet-b5"
+      #- "efficientnet-b6"
+      - "efficientnet-b7"

@@ -3,29 +3,46 @@
 import logging
 from collections import Counter
 
-from monai.losses import DiceCELoss, GeneralizedDiceLoss
-from monai.metrics import DiceMetric
+import segmentation_models_pytorch as smp
 
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-from deadtrees.network.unet import UNet
+from deadtrees.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
 from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
 
 logger = logging.getLogger(__name__)
 
 
-class SemSegment(UNet, pl.LightningModule):  # type: ignore
+class SemSegment(pl.LightningModule):  # type: ignore
     def __init__(
         self,
         train_conf: DictConfig,
         network_conf: DictConfig,
     ):
-        super().__init__(**network_conf)
-        self.save_hyperparameters()  # type: ignore
+        super().__init__()
 
-        self.apply(initialize_weights)
+        architecture = network_conf.architecture.lower().strip()
+        if architecture == "unet":
+            Model = smp.Unet
+        elif architecture in ["unetplusplus", "unet++"]:
+            Model = smp.UnetPlusPlus
+        elif architecture == "resunet":
+            Model = ResUnet
+        elif architecture in ["resunetplusplus", "resunet++"]:
+            Model = ResUnetPlusPlus
+        elif architecture in ["efficientunetplusplus", "efficientunet++"]:
+            Model = EfficientUnetPlusPlus
+        else:
+            raise NotImplementedError(
+                "Currently only Unet, ResUnet, Unet++, ResUnet++, and EfficientUnet++ architectures are supported"
+            )
+
+        del network_conf.architecture
+        self.model = Model(**network_conf)
+        # self.model.apply(initialize_weights)
+        self.save_hyperparameters()  # type: ignore
 
         # CHECK:
         # - softmax yes/ no ?
@@ -40,21 +57,25 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         # Reference:
         # Sudre, C. et. al. (2017) Generalised Dice overlap as a deep learning loss
         #    function for highly unbalanced segmentations. DLMIA 2017.
-        self.criterion = GeneralizedDiceLoss(
-            softmax=True,
-            include_background=False,
-            to_onehot_y=True,
+        # self.criterion = GeneralizedDiceLoss(
+        #     softmax=True,
+        #     include_background=False,
+        #     to_onehot_y=True,
+        # )
+
+        # TODO: check if this is actually generalized dice loss???
+        #       check if classes=[1] is correct
+        self.criterion = smp.losses.DiceLoss(
+            mode="multiclass",
+            classes=[1],
+            # log_loss=True,
         )
 
-        self.dice_metric = DiceMetric(
-            include_background=False,
-            reduction="mean",
+        self.dice_metric = smp.utils.metrics.Fscore(
+            ignore_channels=[0],
         )
 
-        self.dice_metric_with_bg = DiceMetric(
-            include_background=True,
-            reduction="mean",
-        )
+        self.dice_metric_with_bg = smp.utils.metrics.Fscore()
 
         self.stats = {
             "train": Counter(),
@@ -83,7 +104,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         img = img.float()
         mask = mask.long().unsqueeze(1)
-        pred = self(img)
+        pred = self.model(img)
 
         loss = self.criterion(pred, mask)
 
@@ -91,8 +112,8 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         y = torch.zeros_like(pred).scatter_(1, mask, 1)
 
         # TODO: simplify one-hot step
-        dice_score, _ = self.dice_metric(y_pred=y_pred, y=y)
-        dice_score_with_bg, _ = self.dice_metric_with_bg(y_pred=y_pred, y=y)
+        dice_score = self.dice_metric(y_pred, y)
+        dice_score_with_bg = self.dice_metric_with_bg(y_pred, y)
 
         self.log("train/dice", dice_score)
         self.log("train/dice_with_bg", dice_score_with_bg)
@@ -118,7 +139,7 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
 
         img = img.float()
         mask = mask.long()
-        pred = self(img)
+        pred = self.model(img)
 
         loss = self.criterion(pred, mask.unsqueeze(1))
 
@@ -126,8 +147,8 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
 
         # TODO: simplify one-hot step
-        dice_score, _ = self.dice_metric(y_pred=y_pred, y=y)
-        dice_score_with_bg, _ = self.dice_metric_with_bg(y_pred=y_pred, y=y)
+        dice_score = self.dice_metric(y_pred, y)
+        dice_score_with_bg = self.dice_metric_with_bg(y_pred, y)
 
         self.log("val/dice", dice_score)
         self.log("val/dice_with_bg", dice_score_with_bg)
@@ -166,14 +187,14 @@ class SemSegment(UNet, pl.LightningModule):  # type: ignore
         img, mask, stats = batch
         img = img.float()
         mask = mask.long()
-        pred = self(img)
+        pred = self.model(img)
 
         y_pred = pred.softmax(dim=1)
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
 
         # TODO: simplify one-hot step
-        dice_score, _ = self.dice_metric(y_pred=y_pred, y=y)
-        dice_score_with_bg, _ = self.dice_metric_with_bg(y_pred=y_pred, y=y)
+        (dice_score,) = self.dice_metric(y_pred, y)
+        dice_score_with_bg = self.dice_metric_with_bg(y_pred, y)
 
         self.log("test/dice", dice_score)
         self.log("test/dice_with_bg", dice_score_with_bg)
