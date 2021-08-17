@@ -193,7 +193,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
 
         # TODO: simplify one-hot step
-        (dice_score,) = self.dice_metric(y_pred, y)
+        dice_score = self.dice_metric(y_pred, y)
         dice_score_with_bg = self.dice_metric_with_bg(y_pred, y)
 
         self.log("test/dice", dice_score)
