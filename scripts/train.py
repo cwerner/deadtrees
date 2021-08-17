@@ -100,10 +100,10 @@ def main(config: DictConfig) -> Trainer:
     log.info("Starting training!")
     trainer.fit(model=model, datamodule=datamodule)
 
-    # Evaluate model on test set after training
+    # Evaluate model on test set after training (using best model)
     if config.train.run_test:
         log.info("Starting testing!")
-        trainer.test()
+        trainer.test(ckpt_path="best")
 
     # Make sure everything closed properly
     log.info("Finalizing!")
