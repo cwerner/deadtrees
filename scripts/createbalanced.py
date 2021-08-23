@@ -137,6 +137,7 @@ def main():
                 for i in s:
                     dst.add(f"{tmpdir}/{i}.msk.{suffix}", f"{i}.msk.{suffix}")
                     dst.add(f"{tmpdir}/{i}.rgb.{suffix}", f"{i}.rgb.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.nir.{suffix}", f"{i}.nir.{suffix}")
                     dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
 
         print("Write balanced-short shards")
@@ -152,6 +153,7 @@ def main():
                 for i in s:
                     dst.add(f"{tmpdir}/{i}.msk.{suffix}", f"{i}.msk.{suffix}")
                     dst.add(f"{tmpdir}/{i}.rgb.{suffix}", f"{i}.rgb.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.nir.{suffix}", f"{i}.nir.{suffix}")
                     dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
 
 
