@@ -37,8 +37,9 @@ stages:
       size: 3288758774
       nfiles: 49
   createdataset:
-    cmd: python scripts/createdataset.py data/processed.images.2019 data/processed.masks.2019
-      data/dataset  --source_dim 8192 --tile_size 512 --format PNG
+    cmd: python scripts/createdataset.py  data/processed.images.2019  data/processed.images.2019.nir
+      data/processed.masks.2019  data/dataset  --source_dim 8192 --tile_size 512 --format
+      PNG
     deps:
     - path: data/processed.images.2019
       md5: a3c48148cd75adc9b069207edf27b637.dir
@@ -58,8 +59,8 @@ stages:
       md5: 06da46443d403f1fd39a2c75131ec3b4
       size: 387162
     - path: data/dataset/train
-      md5: ea28c53f1d87e38f519f9674e7728dc7.dir
-      size: 4677847040
+      md5: f5da4d9fd3c2ed89b22183f7ff85a7f3.dir
+      size: 6324981760
       nfiles: 23
   createbalanced:
     cmd: python scripts/createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short

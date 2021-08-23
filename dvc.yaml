@@ -58,7 +58,10 @@ stages:
 
   createdataset:
     cmd: >-
-      python scripts/createdataset.py data/processed.images.2019 data/processed.masks.2019 data/dataset 
+      python scripts/createdataset.py 
+      data/processed.images.2019 
+      data/processed.masks.2019 
+      data/dataset 
       --source_dim ${source_dim}
       --tile_size ${createdataset.tile_size}
       --format ${file_type}
