@@ -17,4 +17,4 @@ datamodule:
 model:
   network_conf:
     classes: 2
-    in_channels: 3
+    in_channels: 4
