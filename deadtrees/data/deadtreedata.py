@@ -35,8 +35,18 @@ class DeadtreeDatasetConfig:
     #  Mean: [0.5795097351074219, 0.5944490432739258, 0.5765123963356018]
     #  STD: [0.38006964325904846, 0.36243298649787903, 0.3715078830718994]
 
-    mean = np.array([0.5795097351074219, 0.5944490432739258, 0.5765123963356018])
-    std = np.array([0.38006964325904846, 0.36243298649787903, 0.3715078830718994])
+    # NOTE: NIR data is fake!!! replace with true mean/ std
+    mean = np.array(
+        [0.5795097351074219, 0.5944490432739258, 0.5765123963356018, 0.5765123963356018]
+    )
+    std = np.array(
+        [
+            0.38006964325904846,
+            0.36243298649787903,
+            0.3715078830718994,
+            0.3715078830718994,
+        ]
+    )
     tile_size = 512
     fractions = [0.7, 0.2, 0.1]
 
@@ -101,11 +111,23 @@ def mask_decoder(data):
     return np.asarray(img)
 
 
-def sample_decoder(sample, img_suffix="rgb.png", msk_suffix="msk.png"):
-    """Decode data triplet (image, mask stats) from sharded datastore"""
+def sample_decoder(
+    sample, img_suffix="rgb.png", nir_suffix="nir.png", msk_suffix="msk.png"
+):
+    """Decode data (image, nir_image, mask, stats) from sharded datastore"""
 
     assert img_suffix in sample, "Wrong image suffix provided"
-    sample[img_suffix] = image_decoder(sample[img_suffix])
+
+    if nir_suffix in sample:
+        # fuse rgb and nir to 4 channel image
+        img = image_decoder(sample[img_suffix])
+        nir_img = mask_decoder(
+            sample[img_suffix]
+        )  # nir image is single channel so we can use the mask decoder
+        sample[img_suffix] = np.concatenate((img, nir_img[..., np.newaxis]), axis=2)
+        del sample[nir_suffix]
+    else:
+        sample[img_suffix] = image_decoder(sample[img_suffix])
     if "txt" in sample:
         sample["txt"] = {"file": sample["__key__"], "frac": float(sample["txt"])}
     if msk_suffix in sample:
