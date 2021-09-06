@@ -59,12 +59,18 @@ def fig2img(fig: plt.Figure, dpi: int = 72) -> np.ndarray:
 
 def rgbtensor_to_rgb(x: torch.Tensor) -> List[np.array]:
     """Inverse Normalize a rgb tensor and return list of rgb samples"""
-    MEAN, STD = DeadtreeDatasetConfig.mean, DeadtreeDatasetConfig.std
 
+    # NOTE: the tensor is now 4d RGBN !!!
+    #       for visualization we drop the NIR data
+    # TODO: make channels selectable so we can show false color images, too
+
+    MEAN, STD = DeadtreeDatasetConfig.mean, DeadtreeDatasetConfig.std
     x_norm = []
     for i in range(len(x)):
         x_norm.append(
-            np.array((x[i].permute(1, 2, 0) * STD + MEAN) * 255, dtype="uint8")
+            np.array(
+                (x[i, 0:3].permute(1, 2, 0) * STD[:3] + MEAN[:3]) * 255, dtype="uint8"
+            )
         )
     return x_norm
 
