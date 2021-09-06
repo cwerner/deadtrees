@@ -1,0 +1,4 @@
+outs:
+- md5: 0e6e8db8fdc79736eb94991440dd01f9
+  size: 48779964449
+  path: ortho_2019_ESPG3044_NIR.tif
