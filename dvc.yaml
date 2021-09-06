@@ -12,7 +12,7 @@ stages:
         gdal_retile.py 
         -csv locations.csv 
         -v -ps ${source_dim} ${source_dim}
-        -co "TILED=YES" -co "COMPRESS=LZW" 
+        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2"
         -targetDir data/processed.images.${item} 
         data/raw/ortho_${item}_ESPG3044.tif
       deps:
@@ -21,6 +21,26 @@ stages:
       - source_dim
       outs:
       - data/processed.images.${item}
+
+  createtiles-nir:
+    foreach:
+      - 2017
+      - 2019
+    do:
+      cmd: >-
+        mkdir -p data/processed.images.${item}.nir;
+        gdal_retile.py 
+        -csv locations.csv 
+        -v -ps ${source_dim} ${source_dim}
+        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2"
+        -targetDir data/processed.images.${item}.nir 
+        data/raw/ortho_${item}_ESPG3044_NIR.tif
+      deps:
+      - data/raw/ortho_${item}_ESPG3044_NIR.tif
+      params:
+      - source_dim
+      outs:
+      - data/processed.images.${item}.nir
 
   createmasks:
     cmd: >-
@@ -38,7 +58,10 @@ stages:
 
   createdataset:
     cmd: >-
-      python scripts/createdataset.py data/processed.images.2019 data/processed.masks.2019 data/dataset 
+      python scripts/createdataset.py 
+      data/processed.images.2019 
+      data/processed.masks.2019 
+      data/dataset 
       --source_dim ${source_dim}
       --tile_size ${createdataset.tile_size}
       --format ${file_type}
@@ -70,6 +93,23 @@ stages:
     outs:
     - data/dataset/train_balanced
     - data/dataset/train_balanced_short
+
+  createextra:
+    cmd: >-
+      python scripts/createextra.py 
+      data/raw/shapefiles/deadtrees_notdead/deadtrees_notdead.shp
+      data/processed.images.2019
+      data/dataset/train_balanced
+      data/dataset/train_balanced_short 
+      --tmp-dir ./tmp
+    deps:
+    - data/raw/shapefiles/deadtrees_notdead
+    - data/processed.images.2019
+    - data/dataset/train_balanced
+    - data/dataset/train_balanced_short
+    outs:
+    - data/extra/ds2-train-0*
+    - data/extra/ds3-train-0*
 
   # train:
 

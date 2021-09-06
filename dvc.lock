@@ -37,8 +37,9 @@ stages:
       size: 3288758774
       nfiles: 49
   createdataset:
-    cmd: python scripts/createdataset.py data/processed.images.2019 data/processed.masks.2019
-      data/dataset  --source_dim 8192 --tile_size 512 --format PNG
+    cmd: python scripts/createdataset.py  data/processed.images.2019  data/processed.images.2019.nir
+      data/processed.masks.2019  data/dataset  --source_dim 8192 --tile_size 512 --format
+      PNG
     deps:
     - path: data/processed.images.2019
       md5: a3c48148cd75adc9b069207edf27b637.dir
@@ -58,8 +59,8 @@ stages:
       md5: 06da46443d403f1fd39a2c75131ec3b4
       size: 387162
     - path: data/dataset/train
-      md5: ea28c53f1d87e38f519f9674e7728dc7.dir
-      size: 4677847040
+      md5: f5da4d9fd3c2ed89b22183f7ff85a7f3.dir
+      size: 6324981760
       nfiles: 23
   createbalanced:
     cmd: python scripts/createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short
@@ -69,20 +70,20 @@ stages:
       md5: 06da46443d403f1fd39a2c75131ec3b4
       size: 387162
     - path: data/dataset/train
-      md5: ea28c53f1d87e38f519f9674e7728dc7.dir
-      size: 4677847040
+      md5: f5da4d9fd3c2ed89b22183f7ff85a7f3.dir
+      size: 6324981760
       nfiles: 23
     params:
       params.yaml:
         file_type: PNG
     outs:
     - path: data/dataset/train_balanced
-      md5: 7df9d2814d314cca795889d257d9d281.dir
-      size: 4644628480
+      md5: b7b1bf1ad26274dc9c8eb731dc394357.dir
+      size: 6279290880
       nfiles: 44
     - path: data/dataset/train_balanced_short
-      md5: f0bb5fb08c815bf826684b7d542f355d.dir
-      size: 308807680
+      md5: 019b83384ae120b28a085c5f4946948c.dir
+      size: 416327680
       nfiles: 11
   createtiles@2017:
     cmd: mkdir -p data/processed.images.2017; gdal_retile.py  -csv locations.csv  -v
