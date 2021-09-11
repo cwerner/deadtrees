@@ -2,6 +2,8 @@
 datamodule:
   _target_: deadtrees.data.deadtreedata.DeadtreesDataModule
   pattern: "train-balanced-short-000*.tar"
+  pattern_extra: ["ds2-train-000*.tar", "ds3-train-000*.tar"]
+  batch_size_extra: [1, 1]
   train_dataloader_conf:
     batch_size: 6
     num_workers: 2

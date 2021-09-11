@@ -48,21 +48,32 @@ def _split_tile(
 ) -> List[Tuple[str, bytes, bytes]]:
     """Helper func for split_tiles"""
 
+    image_nir = Path(str(image.parent) + ".nir") / image.name.replace(
+        "ESPG3044", "ESPG3044_NIR"
+    )
+
     with rioxarray.open_rasterio(
         image, chunks={"band": 3, "x": tile_size, "y": tile_size}
     ) as t, rioxarray.open_rasterio(
+        image_nir, chunks={"band": 1, "x": tile_size, "y": tile_size}
+    ) as tnir, rioxarray.open_rasterio(
         mask, chunks={"band": 1, "x": tile_size, "y": tile_size}
     ) as tm:
         if len(t.x) * len(t.y) != source_dim ** 2:
             rgb_data = np.zeros((3, source_dim, source_dim), dtype=t.dtype)
             rgb_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
 
+            nir_data = np.zeros((1, source_dim, source_dim), dtype=tnir.dtype)
+            nir_data[:, 0 : 0 + tnir.shape[1], 0 : 0 + tnir.shape[2]] = tnir.values
+
             mask_data = np.zeros((1, source_dim, source_dim), dtype=tm.dtype)
             mask_data[:, 0 : 0 + tm.shape[1], 0 : 0 + tm.shape[2]] = tm.values
         else:
             rgb_data = t.values
+            nir_data = tnir.values
             mask_data = tm.values
         subtile_rgb = make_blocks_vectorized(rgb_data, tile_size)
+        subtile_nir = make_blocks_vectorized(nir_data, tile_size)
         subtile_mask = make_blocks_vectorized(mask_data, tile_size)
 
     samples = []
@@ -78,11 +89,16 @@ def _split_tile(
 
         if np.min(subtile_rgb[i]) != np.max(subtile_rgb[i]):
             im = Image.fromarray(np.rollaxis(subtile_rgb[i], 0, 3))
+            im_nir = Image.fromarray(subtile_nir[i].squeeze())
             im_mask = Image.fromarray(subtile_mask[i].squeeze())
 
             im_byte_arr = io.BytesIO()
             im.save(im_byte_arr, format=format)
             im_byte_arr = im_byte_arr.getvalue()
+
+            im_nir_byte_arr = io.BytesIO()
+            im_nir.save(im_nir_byte_arr, format=format)
+            im_nir_byte_arr = im_nir_byte_arr.getvalue()
 
             im_mask_byte_arr = io.BytesIO()
             im_mask.save(im_mask_byte_arr, format=format)
@@ -91,6 +107,7 @@ def _split_tile(
             sample = {
                 "__key__": subtile_name,
                 f"rgb.{suffix}": im_byte_arr,
+                f"nir.{suffix}": im_nir_byte_arr,
                 f"msk.{suffix}": im_mask_byte_arr,
                 "txt": str(
                     round(

@@ -46,6 +46,8 @@ def main(config: DictConfig) -> Trainer:
         config.datamodule,
         data_dir=get_env("TRAIN_DATASET_PATH"),
         pattern=config.datamodule.pattern,
+        pattern_extra=config.datamodule.get("pattern_extra", None),
+        batch_size_extra=config.datamodule.get("batch_size_extra", None),
     )
     datamodule.setup()
 
@@ -98,10 +100,10 @@ def main(config: DictConfig) -> Trainer:
     log.info("Starting training!")
     trainer.fit(model=model, datamodule=datamodule)
 
-    # Evaluate model on test set after training
+    # Evaluate model on test set after training (using best model)
     if config.train.run_test:
         log.info("Starting testing!")
-        trainer.test()
+        trainer.test(ckpt_path="best")
 
     # Make sure everything closed properly
     log.info("Finalizing!")

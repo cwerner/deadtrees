@@ -71,6 +71,10 @@ class SemSegment(pl.LightningModule):  # type: ignore
             # log_loss=True,
         )
 
+        self.criterion2 = smp.losses.SoftCrossEntropyLoss(
+            smooth_factor=0.1,
+        )
+
         self.dice_metric = smp.utils.metrics.Fscore(
             ignore_channels=[0],
         )
@@ -91,12 +95,24 @@ class SemSegment(pl.LightningModule):  # type: ignore
         return tqdm_dict
 
     def training_step(self, batch, batch_idx):
-        img, mask, stats = batch
+        img, mask, stats = batch["main"]
+
+        # grab extra datasets and concat tensors
+        extra_imgs, extra_masks, extra_stats = list(
+            zip(*[v for k, v in batch.items() if k.startswith("extra")])
+        )
+        if len(extra_imgs) > 0:
+            img = torch.cat((img, *extra_imgs), dim=0)
+            mask = torch.cat((mask, *extra_masks), dim=0)
+            stats.extend(sum(extra_stats, []))
+
         img = img.float()
         mask = mask.long().unsqueeze(1)
         pred = self.model(img)
 
-        loss = self.criterion(pred, mask)
+        loss_dice = self.criterion(pred, mask)
+        loss_ce = self.criterion2(pred, mask)
+        loss = loss_dice + loss_ce
 
         y_pred = pred.softmax(dim=1)
         y = torch.zeros_like(pred).scatter_(1, mask, 1)
@@ -108,6 +124,8 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("train/dice", dice_score)
         self.log("train/dice_with_bg", dice_score_with_bg)
         self.log("train/total_loss", loss)
+        self.log("train/dice_loss", loss_dice)
+        self.log("train/ce_loss", loss_ce)
 
         # track training batch files
         self.stats["train"].update([x["file"] for x in stats])
@@ -115,12 +133,25 @@ class SemSegment(pl.LightningModule):  # type: ignore
         return loss
 
     def validation_step(self, batch, batch_idx):
-        img, mask, stats = batch
+
+        img, mask, stats = batch["main"]
+
+        # grab extra datasets and concat tensors
+        extra_imgs, extra_masks, extra_stats = list(
+            zip(*[v for k, v in batch.items() if k.startswith("extra")])
+        )
+        if len(extra_imgs) > 0:
+            img = torch.cat((img, *extra_imgs), dim=0)
+            mask = torch.cat((mask, *extra_masks), dim=0)
+            stats.extend(sum(extra_stats, []))
+
         img = img.float()
         mask = mask.long()
         pred = self.model(img)
 
-        loss = self.criterion(pred, mask.unsqueeze(1))
+        loss_dice = self.criterion(pred, mask.unsqueeze(1))
+        loss_ce = self.criterion2(pred, mask.unsqueeze(1))
+        loss = loss_dice + loss_ce
 
         y_pred = pred.softmax(dim=1)
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
@@ -132,13 +163,15 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("val/dice", dice_score)
         self.log("val/dice_with_bg", dice_score_with_bg)
         self.log("val/total_loss", loss)
+        self.log("val/dice_loss", loss_dice)
+        self.log("val/ce_loss", loss_ce)
 
         if batch_idx == 0:
             sample_chart = show(
                 x=img.cpu(),
                 y=mask.cpu(),
                 y_hat=pred.cpu(),
-                n_samples=4,
+                n_samples=min(img.shape[0], 8),
                 stats=stats,
                 dpi=72,
                 display=False,
@@ -172,7 +205,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
 
         # TODO: simplify one-hot step
-        (dice_score,) = self.dice_metric(y_pred, y)
+        dice_score = self.dice_metric(y_pred, y)
         dice_score_with_bg = self.dice_metric_with_bg(y_pred, y)
 
         self.log("test/dice", dice_score)
