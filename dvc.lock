@@ -1,20 +1,21 @@
 schema: '2.0'
 stages:
   createtiles@2019:
-    cmd: mkdir data/processed; gdal_retile.py  -csv locations.csv  -v -ps 8192 8192
-      -co "TILED=YES" -co "COMPRESS=LZW"  -targetDir data/processed.images.2019  data/raw/ortho_2019_ESPG3044.tif
+    cmd: mkdir -p data/processed.images.2019; gdal_retile.py  -csv locations.csv  -v
+      -ps 2048 2048 -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "ALPHA=NO"
+      -co "NUM_THREADS=ALL_CPUS" -targetDir data/processed.images.2019  data/raw/ortho_ms_2019_EPSG3044.tif
     deps:
-    - path: data/raw/ortho_2019_ESPG3044.tif
-      md5: 746e66cb751ca75c9497920f53cdc0b8
-      size: 381359748231
+    - path: data/raw/ortho_ms_2019_EPSG3044.tif
+      md5: 28a27ea53b559c3cec937a3687407557
+      size: 144920418531
     params:
       params.yaml:
-        source_dim: 8192
+        source_dim: 2048
     outs:
     - path: data/processed.images.2019
-      md5: a3c48148cd75adc9b069207edf27b637.dir
-      size: 169321666330
-      nfiles: 1925
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
   createmasks:
     cmd: python scripts/createmasks.py  --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
       data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees/deadtrees.shp
@@ -87,19 +88,20 @@ stages:
       nfiles: 11
   createtiles@2017:
     cmd: mkdir -p data/processed.images.2017; gdal_retile.py  -csv locations.csv  -v
-      -ps 8192 8192 -co "TILED=YES" -co "COMPRESS=LZW"  -targetDir data/processed.images.2017  data/raw/ortho_2017_ESPG3044.tif
+      -ps 2048 2048 -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "ALPHA=NO"
+      -co "NUM_THREADS=ALL_CPUS" -targetDir data/processed.images.2017  data/raw/ortho_ms_2017_EPSG3044.tif
     deps:
-    - path: data/raw/ortho_2017_ESPG3044.tif
-      md5: a3dbc3a39bd6bb1c932ee887af198901
-      size: 381359748231
+    - path: data/raw/ortho_ms_2017_EPSG3044.tif
+      md5: 2389bdb4952d2c869c52e87abce30d4f
+      size: 109896357004
     params:
       params.yaml:
-        source_dim: 8192
+        source_dim: 2048
     outs:
     - path: data/processed.images.2017
-      md5: 78c52e327b8dcd7dfbb5d43790326eb3.dir
-      size: 143381387397
-      nfiles: 1925
+      md5: 66de96d201af5a47a09997691b992370.dir
+      size: 109902740888
+      nfiles: 30489
   inference@2017:
     cmd: mkdir -p data/predicted.2017; mkdir -p data/predicted.2017_preview; stdbuf
       -i0 -o0 -e0 python deadtrees/deployment/tiler.py --all -o data/predicted.2017
