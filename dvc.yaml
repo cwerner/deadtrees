@@ -12,11 +12,11 @@ stages:
         gdal_retile.py 
         -csv locations.csv 
         -v -ps ${source_dim} ${source_dim}
-        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2"
+        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "ALPHA=NO" -co "NUM_THREADS=ALL_CPUS"
         -targetDir data/processed.images.${item} 
-        data/raw/ortho_${item}_ESPG3044.tif
+        data/raw/ortho_ms_${item}_EPSG3044.tif
       deps:
-      - data/raw/ortho_${item}_ESPG3044.tif
+      - data/raw/ortho_ms_${item}_EPSG3044.tif
       params:
       - source_dim
       outs:
@@ -110,9 +110,9 @@ stages:
     - data/processed.images.2019
     - data/dataset/train_balanced
     - data/dataset/train_balanced_short
-    outs:
-    - data/dataset/train_balanced_short/ds2-train-0*
-    - data/dataset/train_balanced_short/ds3-train-0*
+    #outs:
+    #- data/dataset/train_balanced_short/ds2-train-0*
+    #- data/dataset/train_balanced_short/ds3-train-0*
 
   # train:
 
