@@ -22,26 +22,6 @@ stages:
       outs:
       - data/processed.images.${item}
 
-  createtiles-nir:
-    foreach:
-      - 2017
-      - 2019
-    do:
-      cmd: >-
-        mkdir -p data/processed.images.${item}.nir;
-        gdal_retile.py 
-        -csv locations.csv 
-        -v -ps ${source_dim} ${source_dim}
-        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2"
-        -targetDir data/processed.images.${item}.nir 
-        data/raw/ortho_${item}_ESPG3044_NIR.tif
-      deps:
-      - data/raw/ortho_${item}_ESPG3044_NIR.tif
-      params:
-      - source_dim
-      outs:
-      - data/processed.images.${item}.nir
-
   createmasks:
     cmd: >-
       python scripts/createmasks.py 
