@@ -1,4 +1,4 @@
-source_dim: 8192
-file_type: PNG
+source_dim: 2048
+file_type: TIF
 createdataset:
-  tile_size: 512
+  tile_size: 256
