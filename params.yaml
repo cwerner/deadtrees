@@ -1,4 +1,4 @@
 source_dim: 2048
-file_type: TIF
+file_type: TIFF
 createdataset:
   tile_size: 256

@@ -1,6 +1,8 @@
 # dvc project pipeline
 
-# year 2017 inference only (disabled for now)
+# NOTE: see scripts/README.MD for preprocessing from raw data up to the first
+# tracked stage `createtiles`
+
 stages:
   createtiles:
     foreach:
@@ -28,10 +30,10 @@ stages:
       --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
       data/processed.images.2019 
       data/processed.masks.2019 
-      data/raw/shapefiles/deadtrees/deadtrees.shp
+      data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
     deps:
     - data/processed.images.2019
-    - data/raw/shapefiles/deadtrees
+    - data/raw/shapefiles/deadtrees_2019
     - data/raw/shapefiles/deadtrees_area
     outs:
     - data/processed.masks.2019

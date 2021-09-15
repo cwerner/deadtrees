@@ -74,7 +74,6 @@ def split_groundtruth_data_by_tiles(
     """Split the oberserved dead tree areas into tile segments for faster downstream processing"""
 
     union_gpd = gpd.overlay(tiles_df, groundtruth, how="intersection")
-    print(union_gpd.head(20))
     # union_gpd["id"] = union_gpd.id.fillna(1)
     # union_gpd.loc[union_gpd.id > 1, "id"] = 2
 
@@ -96,26 +95,38 @@ def _mask_tile(
     outpath: Path,
 ) -> float:
 
+    classes = [0, 1, 2]  # 0: non-class, 1: coniferous, 2: broadleaf
+
     image_tile_path = inpath / tile_filename
     mask_tile_path = outpath / tile_filename
 
     with rioxarray.open_rasterio(
-        image_tile_path, chunks={"band": 3, "x": 512, "y": 512}
+        image_tile_path, chunks={"band": 4, "x": 256, "y": 256}
     ) as tile:
-        mask = xr.ones_like(tile.load().sel(band=1, drop=True), dtype="uint8")
+        mask_orig = xr.ones_like(tile.load().sel(band=1, drop=True), dtype="uint8")
+        mask_orig.rio.set_crs(crs)
+        selection = groundtruth_df.loc[groundtruth_df.filename == tile_filename]
+        selection.loc[:, "type"] = pd.to_numeric(selection["type"])
 
-        mask.rio.set_crs(crs)
-        selection = groundtruth_df[groundtruth_df.filename == tile_filename]
-        mask = mask.rio.clip(
-            selection.geometry,
-            crs,
-            drop=False,
-            invert=False,
-            all_touched=True,
-            from_disk=True,
-        )
-        mask.rio.to_raster(mask_tile_path, tiled=True)
-        mask_sum = float(mask.sum().values)  # just for checks
+        masks = [mask_orig * 0]
+        for c in classes[1:]:
+            gdf = selection.loc[selection["type"] == c, :]
+
+            if len(gdf) > 0:
+                mask = mask_orig.rio.clip(
+                    gdf.geometry,
+                    crs,
+                    drop=False,
+                    invert=False,
+                    all_touched=True,
+                    from_disk=True,
+                )
+            else:
+                mask = mask_orig * 0
+            masks.append(mask)
+        mask = xr.concat(masks, pd.Index(classes, name="classes")).argmax(dim="classes")
+        mask.astype("uint8").rio.to_raster(mask_tile_path, tiled=True)
+        mask_sum = np.count_nonzero(mask.values)  # just for checks
     return mask_sum
 
 
@@ -149,8 +160,9 @@ def create_masks(
     groundtruth_bbox = None
     if shpfile_bbox:
         groundtruth_bbox = gpd.read_file(shpfile_bbox)
-        crs_bbox = groundtruth_bbox.crs
-        assert crs == crs_bbox, "Coordinate systems for groundtruth and bbox differ"
+        assert (
+            crs == groundtruth_bbox.crs
+        ), "Coordinate systems for groundtruth and bbox differ"
 
     tiles_df = create_tile_grid_gdf(indir / "locations.csv", crs)
     tiles_df = exclude_nodata_tiles(
@@ -166,6 +178,8 @@ def create_masks(
         groundtruth, tiles_df
     )
     print(f"len3: {len(tiles_df_train)}")
+    # groundtruth_df.to_file("test_groundtruth.shp")
+    # tiles_df_train.to_file("test_tiles_train.shp")
 
     create_tile_mask_geotiffs(
         tiles_df_train,

@@ -135,9 +135,8 @@ def main():
                 args.balanced_dir / f"train-balanced-{s_cnt:06d}.tar", "w"
             ) as dst:
                 for i in s:
-                    dst.add(f"{tmpdir}/{i}.msk.{suffix}", f"{i}.msk.{suffix}")
-                    dst.add(f"{tmpdir}/{i}.rgb.{suffix}", f"{i}.rgb.{suffix}")
-                    dst.add(f"{tmpdir}/{i}.nir.{suffix}", f"{i}.nir.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.mask.{suffix}", f"{i}.mask.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.rgbn.{suffix}", f"{i}.rgbn.{suffix}")
                     dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
 
         print("Write balanced-short shards")
@@ -151,9 +150,8 @@ def main():
                 args.balanced_short_dir / f"train-balanced-short-{s_cnt:06d}.tar", "w"
             ) as dst:
                 for i in s:
-                    dst.add(f"{tmpdir}/{i}.msk.{suffix}", f"{i}.msk.{suffix}")
-                    dst.add(f"{tmpdir}/{i}.rgb.{suffix}", f"{i}.rgb.{suffix}")
-                    dst.add(f"{tmpdir}/{i}.nir.{suffix}", f"{i}.nir.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.mask.{suffix}", f"{i}.mask.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.rgbn.{suffix}", f"{i}.rgbn.{suffix}")
                     dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
 
 
