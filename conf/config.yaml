@@ -5,9 +5,9 @@ train:
 trainer:
   gpus: 1
   min_epochs: 1
-  max_epochs: 500
+  max_epochs: 400
   precision: 16
-  val_check_interval: 200
+  #val_check_interval: 200
   #profiler: simple
   progress_bar_refresh_rate: 10
   terminate_on_nan: True
