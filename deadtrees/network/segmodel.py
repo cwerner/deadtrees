@@ -39,9 +39,13 @@ class SemSegment(pl.LightningModule):  # type: ignore
                 "Currently only Unet, ResUnet, Unet++, ResUnet++, and EfficientUnet++ architectures are supported"
             )
 
-        del network_conf.architecture
-        self.model = Model(**network_conf)
+        # Model does not accept "architecture" as an argument, but we need to store it in hparams for inference
+        # TODO: cleanup?
+        clean_network_conf = network_conf.copy()
+        del clean_network_conf.architecture
+        self.model = Model(**clean_network_conf)
         # self.model.apply(initialize_weights)
+
         self.save_hyperparameters()  # type: ignore
 
         self.classes = range(self.hparams["network_conf"]["classes"])
