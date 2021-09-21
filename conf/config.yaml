@@ -14,7 +14,7 @@ trainer:
 
 defaults:
     - callbacks: default_callbacks
-    - datamodule: deadtrees_multi_datasets
+    - datamodule: deadtrees_multi_datasets_singleclass_rgbn
     - model: default
     - logger: wandb
 

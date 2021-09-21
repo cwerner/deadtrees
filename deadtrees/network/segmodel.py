@@ -44,6 +44,9 @@ class SemSegment(pl.LightningModule):  # type: ignore
         # self.model.apply(initialize_weights)
         self.save_hyperparameters()  # type: ignore
 
+        self.classes = range(self.hparams["network_conf"]["classes"])
+        self.in_channels = self.hparams["network_conf"]["in_channels"]
+
         # CHECK:
         # - softmax yes/ no ?
         # - incl_background yes/ no ?
@@ -67,8 +70,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         #       check if classes=[1] is correct
         self.criterion = smp.losses.DiceLoss(
             mode="multiclass",
-            # TODO: make this dynamic ?
-            classes=[1, 2],
+            classes=self.classes[1:],  # ignore background == 0
             # log_loss=True,
         )
 
@@ -112,7 +114,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         pred = self.model(img)
 
         loss_dice = self.criterion(pred, mask)
-        loss_focal = self.criterion2(pred, mask)
+        loss_focal = self.criterion2(pred, mask.squeeze(1))
         loss = loss_dice * 0.5 + loss_focal * 0.5
 
         y_pred = pred.softmax(dim=1)
@@ -151,7 +153,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         pred = self.model(img)
 
         loss_dice = self.criterion(pred, mask.unsqueeze(1))
-        loss_focal = self.criterion2(pred, mask.unsqueeze(1))
+        loss_focal = self.criterion2(pred, mask)  # .unsqueeze(1))
         loss = loss_dice * 0.5 + loss_focal * 0.5
 
         y_pred = pred.softmax(dim=1)

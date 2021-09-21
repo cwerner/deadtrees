@@ -47,7 +47,10 @@ def main(config: DictConfig) -> Trainer:
         pattern_extra=config.datamodule.get("pattern_extra", None),
         batch_size_extra=config.datamodule.get("batch_size_extra", None),
     )
-    datamodule.setup()
+    datamodule.setup(
+        in_channels=config.model.network_conf.in_channels,
+        classes=config.model.network_conf.classes,
+    )
 
     # Init Lightning model
     model: LightningModule = hydra.utils.instantiate(config.model, config.train)

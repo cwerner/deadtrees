@@ -118,7 +118,7 @@ def mask_decoder(data):
 
 
 def sample_decoder(sample, img_suffix="rgbn.tif", msk_suffix="mask.tif"):
-    """Decode data (image, nir_image, mask, stats) from sharded datastore"""
+    """Decode data (image, mask, stats) from sharded datastore"""
 
     assert img_suffix in sample, "Wrong image suffix provided"
 
@@ -161,13 +161,20 @@ val_transform = A.Compose(
 )
 
 
-def transform(sample, transform_func=None):
+def transform(sample, transform_func=None, in_channels=4, classes=3):
+    """Apply transform func to sample and modify channels and/ or classes as specified in training setup"""
     if transform_func:
         transformed = transform_func(
             image=sample["image"].copy(), mask=sample["mask"].copy()
         )
         sample["image"] = transformed["image"]
         sample["mask"] = transformed["mask"]
+
+    sample["image"] = sample["image"][0:in_channels]
+
+    if classes == 2:
+        sample["mask"][sample["mask"] > 1] = 1
+
     return sample
 
 
@@ -208,6 +215,8 @@ class DeadtreesDataModule(pl.LightningDataModule):
     def setup(
         self,
         split_fractions: List[float] = DeadtreeDatasetConfig.fractions,
+        in_channels: Optional[int] = 4,  # change to 3 for rgb training instead of rgbn
+        classes: Optional[int] = 3,  # change to 2 for single class (+bg) setup
     ) -> None:
         train_shards, valid_shards, test_shards = split_shards(
             self.data_shards, split_fractions
@@ -234,7 +243,14 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 .shuffle(shuffle)
                 .map(sample_decoder)
                 .rename(image="rgbn.tif", mask="mask.tif", stats="txt")
-                .map(partial(transform, transform_func=transform_func))
+                .map(
+                    partial(
+                        transform,
+                        transform_func=transform_func,
+                        in_channels=in_channels,
+                        classes=classes,
+                    )
+                )
                 .to_tuple("image", "mask", "stats")
             )
 
