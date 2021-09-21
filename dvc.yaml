@@ -24,6 +24,17 @@ stages:
       outs:
       - data/processed.images.${item}
 
+  computestats:
+    cmd: >-
+      python scripts/computestats.py --frac 0.1
+      data/processed.images.2017  
+      data/processed.images.2019 
+    deps:
+      - data/processed.images.2017
+      - data/processed.images.2019
+    outs:
+      - data/processed.images.stats.json
+  
   createmasks:
     cmd: >-
       python scripts/createmasks.py 
