@@ -87,7 +87,7 @@ stages:
         -co 'COMPRESS=LZW' 
         -co 'TILED=YES' 
         -o data/predicted_mosaic_${item}.tif 
-        data/predicted.${item}/ortho_${item}_ESPG3044_*
+        data/predicted.${item}/ortho_ms_${item}_EPSG3044_*
       deps:
       - data/processed.images.${item}
       outs:
