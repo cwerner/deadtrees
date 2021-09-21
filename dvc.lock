@@ -153,3 +153,18 @@ stages:
     - path: data/predicted_mosaic_2019.tif
       md5: 8f61777c5f40aa8be9f516a611debb27
       size: 811495979
+  computestats:
+    cmd: 'python scripts/computestats.py --frac 0.1 data/processed.images.2017   data/processed.images.2019 '
+    deps:
+    - path: data/processed.images.2017
+      md5: 66de96d201af5a47a09997691b992370.dir
+      size: 109902740888
+      nfiles: 30489
+    - path: data/processed.images.2019
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
+    outs:
+    - path: data/processed.images.stats.json
+      md5: 453f256a6c2bf5359cf3e85b420a54e0
+      size: 585
