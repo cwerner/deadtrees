@@ -67,7 +67,8 @@ class SemSegment(pl.LightningModule):  # type: ignore
         #       check if classes=[1] is correct
         self.criterion = smp.losses.DiceLoss(
             mode="multiclass",
-            classes=[1],
+            # TODO: make this dynamic ?
+            classes=[1, 2],
             # log_loss=True,
         )
 
