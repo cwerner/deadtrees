@@ -17,8 +17,8 @@ stages:
       size: 144926802415
       nfiles: 30489
   createmasks:
-    cmd: python scripts/createmasks.py  --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
-      data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
+    cmd: python scripts/createmasks.py  data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
+      --negativesample data/raw/shapefiles/deadtrees_notdead/deadtrees_notdead.shp
     deps:
     - path: data/processed.images.2019
       md5: 35c31b781cb0bdb19650329132d83d05.dir
@@ -28,15 +28,19 @@ stages:
       md5: 206432f450611c44ceb32c49e50aa8c9.dir
       size: 3996517
       nfiles: 5
-    - path: data/raw/shapefiles/deadtrees_area
-      md5: f098a36246abde3d3e0c0efa6183093a.dir
-      size: 1756
+    - path: data/raw/shapefiles/deadtrees_notdead
+      md5: 99b6d382aebfc46e79c9d044e95add4e.dir
+      size: 31722
       nfiles: 5
     outs:
     - path: data/processed.masks.2019
       md5: 86dfe9fff1765527e6ab7bdbd50e873d.dir
       size: 4103103156
       nfiles: 978
+    - path: data/processed.masks.2019.neg_sample
+      md5: e39614f069603f65a333d0a8713072a9.dir
+      size: 335615520
+      nfiles: 80
   createdataset:
     cmd: python scripts/createdataset.py  data/processed.images.2019  data/processed.masks.2019  data/dataset  --source_dim
       2048 --tile_size 256 --format TIFF
@@ -49,6 +53,10 @@ stages:
       md5: 86dfe9fff1765527e6ab7bdbd50e873d.dir
       size: 4103103156
       nfiles: 978
+    - path: data/processed.masks.2019.neg_sample
+      md5: e39614f069603f65a333d0a8713072a9.dir
+      size: 335615520
+      nfiles: 80
     params:
       params.yaml:
         createdataset.tile_size: 256
@@ -56,12 +64,12 @@ stages:
         source_dim: 2048
     outs:
     - path: data/dataset/stats.csv
-      md5: 8f24c9c9fcbcab4f9388a4b2b26ed58c
-      size: 2415683
+      md5: 5d5e6ab2648bdb6b7846d4c8655a72a8
+      size: 2539255
     - path: data/dataset/train
-      md5: a5a9bd6897f3c8b0143e3a378928cc54.dir
-      size: 20627302400
-      nfiles: 121
+      md5: 155ce2ddabeab3e619b59e016093ae30.dir
+      size: 6895349760
+      nfiles: 162
   createbalanced:
     cmd: python scripts/createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short
       --format TIFF --tmp-dir ./tmp
