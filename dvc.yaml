@@ -94,4 +94,15 @@ stages:
       - data/predicted.${item}
       - data/predicted.${item}_preview
       - data/predicted_mosaic_${item}.tif
-   
+
+      
+  computestatsinference:
+    cmd: >-
+      python scripts/computestats_inference.py
+      data/predicted.2017  
+      data/predicted.2019 
+    deps:
+      - data/predicted.2017
+      - data/predicted.2019
+    outs:
+      - data/predicted.stats.csv
