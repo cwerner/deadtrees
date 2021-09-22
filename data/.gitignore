@@ -2,13 +2,14 @@
 /processed.masks
 /dataset
 /processed.images.2019
-/processed.images.2019.nir
 /processed.masks.2019
 /processed.images.2017
-/processed.images.2017.nir
 /predicted.2017
 /predicted.2017_preview
 /predicted_mosaic_2017.tif
 /predicted.2019
 /predicted.2019_preview
 /predicted_mosaic_2019.tif
+/processed.masks.2019.neg_sample
+/processed.images.stats.json
+/predicted.stats.csv

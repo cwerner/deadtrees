@@ -1,146 +1,185 @@
 schema: '2.0'
 stages:
   createtiles@2019:
-    cmd: mkdir data/processed; gdal_retile.py  -csv locations.csv  -v -ps 8192 8192
-      -co "TILED=YES" -co "COMPRESS=LZW"  -targetDir data/processed.images.2019  data/raw/ortho_2019_ESPG3044.tif
+    cmd: mkdir -p data/processed.images.2019; gdal_retile.py  -csv locations.csv  -v
+      -ps 2048 2048 -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "ALPHA=NO"
+      -co "NUM_THREADS=ALL_CPUS" -targetDir data/processed.images.2019  data/raw/ortho_ms_2019_EPSG3044.tif
     deps:
-    - path: data/raw/ortho_2019_ESPG3044.tif
-      md5: 746e66cb751ca75c9497920f53cdc0b8
-      size: 381359748231
+    - path: data/raw/ortho_ms_2019_EPSG3044.tif
+      md5: 28a27ea53b559c3cec937a3687407557
+      size: 144920418531
     params:
       params.yaml:
-        source_dim: 8192
+        source_dim: 2048
     outs:
     - path: data/processed.images.2019
-      md5: a3c48148cd75adc9b069207edf27b637.dir
-      size: 169321666330
-      nfiles: 1925
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
   createmasks:
-    cmd: python scripts/createmasks.py  --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
-      data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees/deadtrees.shp
+    cmd: python scripts/createmasks.py  data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
+      --negativesample data/raw/shapefiles/deadtrees_notdead/deadtrees_notdead.shp
     deps:
     - path: data/processed.images.2019
-      md5: a3c48148cd75adc9b069207edf27b637.dir
-      size: 169321666330
-      nfiles: 1925
-    - path: data/raw/shapefiles/deadtrees
-      md5: fdc094c879c6588fe71d19a7177eda48.dir
-      size: 1665350
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
+    - path: data/raw/shapefiles/deadtrees_2019
+      md5: 206432f450611c44ceb32c49e50aa8c9.dir
+      size: 3996517
       nfiles: 5
-    - path: data/raw/shapefiles/deadtrees_area
-      md5: f098a36246abde3d3e0c0efa6183093a.dir
-      size: 1756
+    - path: data/raw/shapefiles/deadtrees_notdead
+      md5: 99b6d382aebfc46e79c9d044e95add4e.dir
+      size: 31722
       nfiles: 5
     outs:
     - path: data/processed.masks.2019
-      md5: bcdadbbf7cb31f3a2a4f437290dcbd28.dir
-      size: 3288758774
-      nfiles: 49
+      md5: 86dfe9fff1765527e6ab7bdbd50e873d.dir
+      size: 4103103156
+      nfiles: 978
+    - path: data/processed.masks.2019.neg_sample
+      md5: e39614f069603f65a333d0a8713072a9.dir
+      size: 335615520
+      nfiles: 80
   createdataset:
-    cmd: python scripts/createdataset.py  data/processed.images.2019  data/processed.images.2019.nir
-      data/processed.masks.2019  data/dataset  --source_dim 8192 --tile_size 512 --format
-      PNG
+    cmd: python scripts/createdataset.py  data/processed.images.2019  data/processed.masks.2019  data/dataset  --source_dim
+      2048 --tile_size 256 --format TIFF
     deps:
     - path: data/processed.images.2019
-      md5: a3c48148cd75adc9b069207edf27b637.dir
-      size: 169321666330
-      nfiles: 1925
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
     - path: data/processed.masks.2019
-      md5: bcdadbbf7cb31f3a2a4f437290dcbd28.dir
-      size: 3288758774
-      nfiles: 49
+      md5: 86dfe9fff1765527e6ab7bdbd50e873d.dir
+      size: 4103103156
+      nfiles: 978
+    - path: data/processed.masks.2019.neg_sample
+      md5: e39614f069603f65a333d0a8713072a9.dir
+      size: 335615520
+      nfiles: 80
     params:
       params.yaml:
-        createdataset.tile_size: 512
-        file_type: PNG
-        source_dim: 8192
+        createdataset.tile_size: 256
+        file_type: TIFF
+        source_dim: 2048
     outs:
     - path: data/dataset/stats.csv
-      md5: 06da46443d403f1fd39a2c75131ec3b4
-      size: 387162
+      md5: 5d5e6ab2648bdb6b7846d4c8655a72a8
+      size: 2539255
     - path: data/dataset/train
-      md5: f5da4d9fd3c2ed89b22183f7ff85a7f3.dir
-      size: 6324981760
-      nfiles: 23
+      md5: 155ce2ddabeab3e619b59e016093ae30.dir
+      size: 6895349760
+      nfiles: 162
   createbalanced:
     cmd: python scripts/createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short
-      --format PNG --tmp-dir ./tmp
+      --format TIFF --tmp-dir ./tmp
     deps:
     - path: data/dataset/stats.csv
-      md5: 06da46443d403f1fd39a2c75131ec3b4
-      size: 387162
+      md5: 8f24c9c9fcbcab4f9388a4b2b26ed58c
+      size: 2415683
     - path: data/dataset/train
-      md5: f5da4d9fd3c2ed89b22183f7ff85a7f3.dir
-      size: 6324981760
-      nfiles: 23
+      md5: a5a9bd6897f3c8b0143e3a378928cc54.dir
+      size: 20627302400
+      nfiles: 121
     params:
       params.yaml:
-        file_type: PNG
+        file_type: TIFF
     outs:
     - path: data/dataset/train_balanced
-      md5: b7b1bf1ad26274dc9c8eb731dc394357.dir
-      size: 6279290880
-      nfiles: 44
+      md5: 00c0e3636b55b92b63add488a2e62a12.dir
+      size: 20596592640
+      nfiles: 241
     - path: data/dataset/train_balanced_short
-      md5: 019b83384ae120b28a085c5f4946948c.dir
-      size: 416327680
-      nfiles: 11
+      md5: 94e764aa3326c386524910bfbac0454d.dir
+      size: 2072975360
+      nfiles: 97
   createtiles@2017:
     cmd: mkdir -p data/processed.images.2017; gdal_retile.py  -csv locations.csv  -v
-      -ps 8192 8192 -co "TILED=YES" -co "COMPRESS=LZW"  -targetDir data/processed.images.2017  data/raw/ortho_2017_ESPG3044.tif
+      -ps 2048 2048 -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "ALPHA=NO"
+      -co "NUM_THREADS=ALL_CPUS" -targetDir data/processed.images.2017  data/raw/ortho_ms_2017_EPSG3044.tif
     deps:
-    - path: data/raw/ortho_2017_ESPG3044.tif
-      md5: a3dbc3a39bd6bb1c932ee887af198901
-      size: 381359748231
+    - path: data/raw/ortho_ms_2017_EPSG3044.tif
+      md5: 2389bdb4952d2c869c52e87abce30d4f
+      size: 109896357004
     params:
       params.yaml:
-        source_dim: 8192
+        source_dim: 2048
     outs:
     - path: data/processed.images.2017
-      md5: 78c52e327b8dcd7dfbb5d43790326eb3.dir
-      size: 143381387397
-      nfiles: 1925
+      md5: 66de96d201af5a47a09997691b992370.dir
+      size: 109902740888
+      nfiles: 30489
   inference@2017:
     cmd: mkdir -p data/predicted.2017; mkdir -p data/predicted.2017_preview; stdbuf
       -i0 -o0 -e0 python deadtrees/deployment/tiler.py --all -o data/predicted.2017
       data/processed.images.2017; gdal_merge.py  -co 'COMPRESS=LZW'  -co 'TILED=YES'  -o
-      data/predicted_mosaic_2017.tif  data/predicted.2017/ortho_2017_ESPG3044_*
+      data/predicted_mosaic_2017.tif  data/predicted.2017/ortho_ms_2017_EPSG3044_*
     deps:
     - path: data/processed.images.2017
-      md5: 78c52e327b8dcd7dfbb5d43790326eb3.dir
-      size: 143381387397
-      nfiles: 1925
+      md5: 66de96d201af5a47a09997691b992370.dir
+      size: 109902740888
+      nfiles: 30489
     outs:
     - path: data/predicted.2017
-      md5: 03accabe790944174dfe0d5b59f78a9d.dir
-      size: 625167771
-      nfiles: 1395
+      md5: 5f6c51487c2ea4ffff3430d44e694799.dir
+      size: 599348567
+      nfiles: 20827
     - path: data/predicted.2017_preview
-      md5: fdd75c06b1c558994e9bf43e5c1d46ce.dir
-      size: 92731291854
-      nfiles: 1395
+      md5: 9410905292c82df9389999349a157931.dir
+      size: 87265506654
+      nfiles: 20827
     - path: data/predicted_mosaic_2017.tif
-      md5: c48627137e12a9b3be38d07564f0a212
-      size: 852005583
+      md5: 9f920c44fb88f61dd77ef8ff47eeed5d
+      size: 834945563
   inference@2019:
     cmd: mkdir -p data/predicted.2019; mkdir -p data/predicted.2019_preview; stdbuf
       -i0 -o0 -e0 python deadtrees/deployment/tiler.py --all -o data/predicted.2019
       data/processed.images.2019; gdal_merge.py  -co 'COMPRESS=LZW'  -co 'TILED=YES'  -o
-      data/predicted_mosaic_2019.tif  data/predicted.2019/ortho_2019_ESPG3044_*
+      data/predicted_mosaic_2019.tif  data/predicted.2019/ortho_ms_2019_EPSG3044_*
     deps:
     - path: data/processed.images.2019
-      md5: a3c48148cd75adc9b069207edf27b637.dir
-      size: 169321666330
-      nfiles: 1925
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
     outs:
     - path: data/predicted.2019
-      md5: c11c8b07d66915a7d0f134a86da83522.dir
-      size: 504032171
-      nfiles: 1089
+      md5: 7fe1bc28db7505e7db29ee31872ee0a2.dir
+      size: 480433774
+      nfiles: 16227
     - path: data/predicted.2019_preview
-      md5: bc98ec08d56fc2fb6638385f3dbf4b8f.dir
-      size: 73081685754
-      nfiles: 1089
+      md5: 1fb8d486945228d9aad87d6616512247.dir
+      size: 68062950702
+      nfiles: 16227
     - path: data/predicted_mosaic_2019.tif
-      md5: 8f61777c5f40aa8be9f516a611debb27
-      size: 811495979
+      md5: 591fd24b8603981246a1967edef791ab
+      size: 803971970
+  computestats:
+    cmd: 'python scripts/computestats.py --frac 0.1 data/processed.images.2017   data/processed.images.2019 '
+    deps:
+    - path: data/processed.images.2017
+      md5: 66de96d201af5a47a09997691b992370.dir
+      size: 109902740888
+      nfiles: 30489
+    - path: data/processed.images.2019
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
+    outs:
+    - path: data/processed.images.stats.json
+      md5: 453f256a6c2bf5359cf3e85b420a54e0
+      size: 585
+  computestatsinference:
+    cmd: 'python scripts/computestats_inference.py data/predicted.2017   data/predicted.2019 '
+    deps:
+    - path: data/predicted.2017
+      md5: 5f6c51487c2ea4ffff3430d44e694799.dir
+      size: 599348567
+      nfiles: 20827
+    - path: data/predicted.2019
+      md5: 7fe1bc28db7505e7db29ee31872ee0a2.dir
+      size: 480433774
+      nfiles: 16227
+    outs:
+    - path: data/predicted.stats.csv
+      md5: 6d86b56ec9f16c4a87f637e03efd162c
+      size: 1323925

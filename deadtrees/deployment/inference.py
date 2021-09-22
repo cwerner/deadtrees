@@ -36,7 +36,8 @@ class PyTorchInference(Inference):
         model = SemSegment.load_from_checkpoint(self._model_file)
         model.eval()
 
-        self._model = model
+        # TODO: this is ugly, rename or restructure
+        self._model = model.model
 
     def run(self, input_tensor, device: str = "cpu"):
         if not isinstance(input_tensor, torch.Tensor):

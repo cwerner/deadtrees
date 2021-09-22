@@ -39,7 +39,6 @@ def _identify_empty(tile: Union[Path, str]) -> bool:
 def exclude_nodata_tiles(
     path: Iterable[Union[Path, str]],
     tiles_df: gpd.GeoDataFrame,
-    bbox_df: gpd.GeoDataFrame,
     workers: int,
 ) -> gpd.GeoDataFrame:
     """Identify tiles that only contain NoData (in parallel)"""
@@ -74,14 +73,8 @@ def split_groundtruth_data_by_tiles(
     """Split the oberserved dead tree areas into tile segments for faster downstream processing"""
 
     union_gpd = gpd.overlay(tiles_df, groundtruth, how="intersection")
-    print(union_gpd.head(20))
-    # union_gpd["id"] = union_gpd.id.fillna(1)
-    # union_gpd.loc[union_gpd.id > 1, "id"] = 2
 
-    train_files = list(
-        # sorted(union_gpd[union_gpd.id == 2].filename.value_counts().keys())
-        sorted(union_gpd.filename.value_counts().keys())
-    )
+    train_files = list(sorted(union_gpd.filename.value_counts().keys()))
 
     tiles_with_groundtruth = tiles_df[tiles_df.filename.isin(train_files)]
     return tiles_with_groundtruth, union_gpd  # union_gpd[union_gpd.id == 2]
@@ -94,28 +87,58 @@ def _mask_tile(
     crs: str,
     inpath: Path,
     outpath: Path,
+    simple: bool = False,
 ) -> float:
 
     image_tile_path = inpath / tile_filename
     mask_tile_path = outpath / tile_filename
 
     with rioxarray.open_rasterio(
-        image_tile_path, chunks={"band": 3, "x": 512, "y": 512}
+        image_tile_path, chunks={"band": 4, "x": 256, "y": 256}
     ) as tile:
-        mask = xr.ones_like(tile.load().sel(band=1, drop=True), dtype="uint8")
+        mask_orig = xr.ones_like(tile.load().sel(band=1, drop=True), dtype="uint8")
+        mask_orig.rio.set_crs(crs)
+        selection = groundtruth_df.loc[groundtruth_df.filename == tile_filename]
 
-        mask.rio.set_crs(crs)
-        selection = groundtruth_df[groundtruth_df.filename == tile_filename]
-        mask = mask.rio.clip(
-            selection.geometry,
-            crs,
-            drop=False,
-            invert=False,
-            all_touched=True,
-            from_disk=True,
-        )
-        mask.rio.to_raster(mask_tile_path, tiled=True)
-        mask_sum = float(mask.sum().values)  # just for checks
+        if simple:
+            # just use the geometry for clipping (single-class)
+            mask = mask_orig.rio.clip(
+                selection.geometry,
+                crs,
+                drop=False,
+                invert=False,
+                all_touched=True,
+                from_disk=True,
+            )
+
+        else:
+            # use type col from shapefile to create (multi-)classification masks
+
+            classes = [0, 1, 2]  # 0: non-class, 1: coniferous, 2: broadleaf
+
+            selection.loc[:, "type"] = pd.to_numeric(selection["type"])
+            masks = [mask_orig * 0]
+            for c in classes[1:]:
+                gdf = selection.loc[selection["type"] == c, :]
+
+                if len(gdf) > 0:
+                    mask = mask_orig.rio.clip(
+                        gdf.geometry,
+                        crs,
+                        drop=False,
+                        invert=False,
+                        all_touched=True,
+                        from_disk=True,
+                    )
+                else:
+                    mask = mask_orig * 0
+                masks.append(mask)
+            mask = xr.concat(masks, pd.Index(classes, name="classes")).argmax(
+                dim="classes"
+            )
+
+        mask.astype("uint8").rio.to_raster(mask_tile_path, tiled=True)
+        mask_sum = np.count_nonzero(mask.values)  # just for checks
     return mask_sum
 
 
@@ -135,7 +158,7 @@ def create_masks(
     indir: Path,
     outdir: Path,
     shpfile: Path,
-    shpfile_bbox: Optional[Path],
+    shpfile_ns: Optional[Path],
     workers: int,
 ) -> None:
     """
@@ -146,17 +169,10 @@ def create_masks(
     groundtruth = gpd.read_file(shpfile)
     crs = groundtruth.crs  # reference crs
 
-    groundtruth_bbox = None
-    if shpfile_bbox:
-        groundtruth_bbox = gpd.read_file(shpfile_bbox)
-        crs_bbox = groundtruth_bbox.crs
-        assert crs == crs_bbox, "Coordinate systems for groundtruth and bbox differ"
-
     tiles_df = create_tile_grid_gdf(indir / "locations.csv", crs)
     tiles_df = exclude_nodata_tiles(
         sorted(indir.glob("*.tif")),
         tiles_df,
-        groundtruth_bbox,
         workers,
     )
     print(f"len2: {len(tiles_df)}")
@@ -165,7 +181,6 @@ def create_masks(
     tiles_df_train, groundtruth_df = split_groundtruth_data_by_tiles(
         groundtruth, tiles_df
     )
-    print(f"len3: {len(tiles_df_train)}")
 
     create_tile_mask_geotiffs(
         tiles_df_train,
@@ -175,6 +190,32 @@ def create_masks(
         inpath=indir,
         outpath=outdir,
     )
+
+    if shpfile_ns:
+        outpath = outdir.parent / (outdir.name + ".neg_sample")
+        outpath.mkdir(parents=True, exist_ok=True)
+
+        groundtruth_ns = gpd.read_file(shpfile_ns)
+        tiles_df_train_ns, groundtruth_ns_df = split_groundtruth_data_by_tiles(
+            groundtruth_ns, tiles_df
+        )
+
+        # make sure we don't use tiles from original tiles_df_train
+        # print(f'Size tiles_df_train_ns (A) {len(tiles_df_train_ns)}')
+        tiles_df_train_ns = tiles_df_train_ns.loc[
+            ~tiles_df_train_ns.filename.isin(tiles_df_train.filename)
+        ]
+        # print(f'Size tiles_df_train_ns (B) {len(tiles_df_train_ns)}')
+
+        create_tile_mask_geotiffs(
+            tiles_df_train_ns,
+            workers,
+            groundtruth_df=groundtruth_ns_df,
+            crs=crs,
+            inpath=indir,
+            outpath=outdir.parent / (outdir.name + ".neg_sample"),
+            simple=True,
+        )
 
 
 def main():
@@ -194,11 +235,11 @@ def main():
     )
 
     parser.add_argument(
-        "--bbox",
-        dest="bbox",
+        "--negativesample",
+        dest="shpfile_ns",
         type=Path,
         default=None,
-        help="shapefile with bounding boxes that should be used to create training tiles",
+        help="shapefile with non-deadtree samples to create additional training tiles",
     )
 
     args = parser.parse_args()
@@ -209,7 +250,7 @@ def main():
         args.indir,
         args.outdir,
         args.shpfile,
-        args.bbox,
+        args.shpfile_ns,
         args.workers,
     )
 

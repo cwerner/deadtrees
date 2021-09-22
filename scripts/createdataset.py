@@ -1,19 +1,58 @@
 import argparse
 import io
+import math
+import random
+import tarfile
+import tempfile
 from functools import partial, reduce
 from itertools import islice
 from pathlib import Path
-from typing import Any, Iterable, List, Tuple, TypeVar, Union
+from typing import Any, Iterable, List, Optional, Tuple, TypeVar, Union
 
 import psutil
 import webdataset as wds
 
 import numpy as np
+import pandas as pd
 import rioxarray
 import xarray as xr
 from PIL import Image
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
+
+SHARDSIZE = 128
+OVERSAMPLE_FACTOR = 2  # factor of random samples to dt + ndt samples
+
+
+def split_df(
+    df: pd.DataFrame,
+    size: int,
+    refcol: str = "frac",
+    reduce: Optional[int] = None,
+) -> List[pd.DataFrame]:
+    """
+    Split dataset into train, val, test fractions while preserving
+    the original mean ratio of deadtree pixels for all three buckets
+    """
+
+    df = df.sort_values(by=refcol, ascending=False).reset_index(drop=True)
+
+    n_fractions = math.floor(len(df) / size)
+    fractions = [1 / n_fractions] * n_fractions
+    all_fractions = sum(fractions)
+    status = [0] * n_fractions
+
+    df["class"] = -1
+
+    idx = np.argmin(status)
+
+    for rid, row in df.iterrows():
+        idx = np.argmin(status)
+        status[idx] += all_fractions / fractions[idx]
+        df.loc[rid, "class"] = idx
+
+    gdf = df.groupby("class")
+    return [[f for f in gdf.get_group(x)["tile"]] for x in gdf.groups]
 
 
 # https://stackoverflow.com/a/39430508/5300574
@@ -44,37 +83,46 @@ def _split_tile(
     source_dim: int,
     tile_size: int,
     format: str,
-    outdir: Path,
+    valid_subtiles: Optional[Iterable[str]] = None,
 ) -> List[Tuple[str, bytes, bytes]]:
     """Helper func for split_tiles"""
 
-    image_nir = Path(str(image.parent) + ".nir") / image.name.replace(
-        "ESPG3044", "ESPG3044_NIR"
-    )
+    n_bands = 4  # RGBN
 
-    with rioxarray.open_rasterio(
-        image, chunks={"band": 3, "x": tile_size, "y": tile_size}
-    ) as t, rioxarray.open_rasterio(
-        image_nir, chunks={"band": 1, "x": tile_size, "y": tile_size}
-    ) as tnir, rioxarray.open_rasterio(
-        mask, chunks={"band": 1, "x": tile_size, "y": tile_size}
-    ) as tm:
-        if len(t.x) * len(t.y) != source_dim ** 2:
-            rgb_data = np.zeros((3, source_dim, source_dim), dtype=t.dtype)
-            rgb_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
+    if mask is None:
+        """No mask provided (random samples)"""
 
-            nir_data = np.zeros((1, source_dim, source_dim), dtype=tnir.dtype)
-            nir_data[:, 0 : 0 + tnir.shape[1], 0 : 0 + tnir.shape[2]] = tnir.values
+        with rioxarray.open_rasterio(
+            image, chunks={"band": n_bands, "x": tile_size, "y": tile_size}
+        ) as t:
+            if len(t.x) * len(t.y) != source_dim ** 2:
+                rgbn_data = np.zeros((n_bands, source_dim, source_dim), dtype=t.dtype)
+                rgbn_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
 
-            mask_data = np.zeros((1, source_dim, source_dim), dtype=tm.dtype)
-            mask_data[:, 0 : 0 + tm.shape[1], 0 : 0 + tm.shape[2]] = tm.values
-        else:
-            rgb_data = t.values
-            nir_data = tnir.values
-            mask_data = tm.values
-        subtile_rgb = make_blocks_vectorized(rgb_data, tile_size)
-        subtile_nir = make_blocks_vectorized(nir_data, tile_size)
-        subtile_mask = make_blocks_vectorized(mask_data, tile_size)
+            else:
+                rgbn_data = t.values
+            subtile_rgbn = make_blocks_vectorized(rgbn_data, tile_size)
+            subtile_mask = make_blocks_vectorized(
+                np.zeros_like(rgbn_data[0:1]), tile_size
+            )
+    else:
+
+        with rioxarray.open_rasterio(
+            image, chunks={"band": n_bands, "x": tile_size, "y": tile_size}
+        ) as t, rioxarray.open_rasterio(
+            mask, chunks={"band": 1, "x": tile_size, "y": tile_size}
+        ) as tm:
+            if len(t.x) * len(t.y) != source_dim ** 2:
+                rgbn_data = np.zeros((n_bands, source_dim, source_dim), dtype=t.dtype)
+                rgbn_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
+
+                mask_data = np.zeros((1, source_dim, source_dim), dtype=tm.dtype)
+                mask_data[:, 0 : 0 + tm.shape[1], 0 : 0 + tm.shape[2]] = tm.values
+            else:
+                rgbn_data = t.values
+                mask_data = tm.values
+            subtile_rgbn = make_blocks_vectorized(rgbn_data, tile_size)
+            subtile_mask = make_blocks_vectorized(mask_data, tile_size)
 
     samples = []
     if format == "TIFF":
@@ -84,21 +132,16 @@ def _split_tile(
     else:
         raise NotImplementedError
 
-    for i in range(subtile_rgb.shape[0]):
-        subtile_name = f"{mask.name[:-4]}_{i:03d}"
+    for i in range(subtile_rgbn.shape[0]):
+        subtile_name = f"{image.stem}_{i:03}"
 
-        if np.min(subtile_rgb[i]) != np.max(subtile_rgb[i]):
-            im = Image.fromarray(np.rollaxis(subtile_rgb[i], 0, 3))
-            im_nir = Image.fromarray(subtile_nir[i].squeeze())
+        if np.min(subtile_rgbn[i]) != np.max(subtile_rgbn[i]):
+            im = Image.fromarray(np.rollaxis(subtile_rgbn[i], 0, 3), "RGBA")
             im_mask = Image.fromarray(subtile_mask[i].squeeze())
 
             im_byte_arr = io.BytesIO()
             im.save(im_byte_arr, format=format)
             im_byte_arr = im_byte_arr.getvalue()
-
-            im_nir_byte_arr = io.BytesIO()
-            im_nir.save(im_nir_byte_arr, format=format)
-            im_nir_byte_arr = im_nir_byte_arr.getvalue()
 
             im_mask_byte_arr = io.BytesIO()
             im_mask.save(im_mask_byte_arr, format=format)
@@ -106,26 +149,29 @@ def _split_tile(
 
             sample = {
                 "__key__": subtile_name,
-                f"rgb.{suffix}": im_byte_arr,
-                f"nir.{suffix}": im_nir_byte_arr,
-                f"msk.{suffix}": im_mask_byte_arr,
+                f"rgbn.{suffix}": im_byte_arr,
+                f"mask.{suffix}": im_mask_byte_arr,
                 "txt": str(
                     round(
-                        float(subtile_mask[i].sum()) / (tile_size * tile_size) * 100, 2
+                        float(np.count_nonzero(subtile_mask[i]))
+                        / (tile_size * tile_size)
+                        * 100,
+                        2,
                     )
                 ),
             }
-            samples.append(sample)
+            if (valid_subtiles is None) or (subtile_name in valid_subtiles):
+                samples.append(sample)
     return samples
 
 
-def split_tiles(images, masks, workers: int, **kwargs) -> List[Any]:
+def split_tiles(images, masks, workers: int, shardpattern: str, **kwargs) -> List[Any]:
     """Split tile into subtiles in parallel and save them to disk"""
 
+    valid_subtiles = kwargs.get("valid_subtiles", None)
+
     stats = []
-    with wds.ShardWriter(
-        str(kwargs["outdir"]) + "/train/train-%06d.tar", maxcount=512
-    ) as sink:
+    with wds.ShardWriter(shardpattern, maxcount=SHARDSIZE) as sink:
 
         data = process_map(
             partial(_split_tile, **kwargs),
@@ -137,76 +183,19 @@ def split_tiles(images, masks, workers: int, **kwargs) -> List[Any]:
 
         for sample in reduce(lambda z, y: z + y, data):
             if sample:
-                sink.write(sample)
-                stats.append((sample["__key__"], sample["txt"]))
+                if valid_subtiles:
+                    if sample["__key__"] in valid_subtiles:
+                        sink.write(sample)
+                        stats.append((sample["__key__"], sample["txt"], "1"))
+                else:
+                    if float(sample["txt"]) > 0:
+                        sink.write(sample)
+                        stats.append((sample["__key__"], sample["txt"], "1"))
+                    else:
+                        # not included in shard
+                        stats.append((sample["__key__"], sample["txt"], "0"))
 
     return stats
-
-
-def _split_inference_tile(
-    image: Path,
-    *,
-    source_dim: int,
-    tile_size: int,
-    format: str,
-    outdir: Path,
-) -> List[float]:
-    """Helper func for split_inference_tiles"""
-
-    with rioxarray.open_rasterio(
-        image, chunks={"band": 3, "x": tile_size, "y": tile_size}
-    ) as t:
-        if len(t.x) * len(t.y) != source_dim ** 2:
-            rgb_data = np.zeros((3, source_dim, source_dim), dtype=t.dtype)
-            rgb_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
-        else:
-            rgb_data = t.values
-        subtile_rgb = make_blocks_vectorized(rgb_data, tile_size)
-
-    samples = []
-    if format == "TIFF":
-        suffix = "tif"
-    elif format == "PNG":
-        suffix = "png"
-    else:
-        raise NotImplementedError
-
-    for i in range(subtile_rgb.shape[0]):
-        subtile_name = f"{image.name[:-4]}_{i:03d}"
-
-        if np.min(subtile_rgb[i]) != np.max(subtile_rgb[i]):
-            im = Image.fromarray(np.rollaxis(subtile_rgb[i], 0, 3))
-
-            im_byte_arr = io.BytesIO()
-            im.save(im_byte_arr, format=format)
-            im_byte_arr = im_byte_arr.getvalue()
-
-            sample = {
-                "__key__": subtile_name,
-                f"rgb.{suffix}": im_byte_arr,
-            }
-            samples.append(sample)
-    return samples
-
-
-def split_inference_tiles(images, workers: int, **kwargs) -> None:
-    """Split inference tiles into subtiles in parallel and save them to disk"""
-
-    with wds.ShardWriter(
-        str(kwargs["outdir"]) + "/inference/inference-%06d.tar", maxcount=512
-    ) as sink:
-        # process images in subsets
-        for subset in [images[x : x + 100] for x in range(0, len(images), 100)]:
-            data = process_map(
-                partial(_split_inference_tile, **kwargs),
-                subset,
-                max_workers=workers,
-                chunksize=1,
-            )
-
-            for sample in reduce(lambda z, y: z + y, data):
-                if sample:
-                    sink.write(sample)
 
 
 def main():
@@ -228,7 +217,7 @@ def main():
         "--source_dim",
         dest="source_dim",
         type=int,
-        default=8192,
+        default=2048,
         help="size of input tiles [def: %(default)s]",
     )
 
@@ -236,7 +225,7 @@ def main():
         "--tile_size",
         dest="tile_size",
         type=int,
-        default=512,
+        default=256,
         help="size of final tiles that are then passed to the model [def: %(default)s]",
     )
 
@@ -244,17 +233,17 @@ def main():
         "--format",
         dest="format",
         type=str,
-        default="PNG",
+        default="TIFF",
         choices=["PNG", "TIFF"],
         help="target file format (PNG, TIFF) [def: %(default)s]",
     )
 
     parser.add_argument(
-        "--all",
-        dest="inference_tiles",
-        default=False,
-        action="store_true",
-        help="also produce subtiles for inference-only tiles",
+        "--tmp-dir",
+        dest="tmp_dir",
+        type=Path,
+        default=None,
+        help="use this location as tmp dir",
     )
 
     args = parser.parse_args()
@@ -262,8 +251,16 @@ def main():
     args.outdir.mkdir(parents=True, exist_ok=True)
     Path(args.outdir / "train").mkdir(parents=True, exist_ok=True)
 
-    if args.inference_tiles:
-        Path(args.outdir / "inference").mkdir(parents=True, exist_ok=True)
+    if args.tmp_dir:
+        print(f"Using custom tmp dir: {args.tmp_dir}")
+        Path(args.tmp_dir).mkdir(parents=True, exist_ok=True)
+
+    if args.format == "TIFF":
+        suffix = "tif"
+    elif args.format == "PNG":
+        suffix = "png"
+    else:
+        raise NotImplementedError
 
     # subtile_stats = split_tiles(train_files)
     images = sorted(args.image_dir.glob("*.tif"))
@@ -275,27 +272,140 @@ def main():
     # limit set of images to images that have equivalent mask tiles
     train_images = [i for i in images if i.name in image_names.intersection(mask_names)]
 
-    # images without masks (used for inference only)
-    inference_images = [
-        i for i in images if i.name in image_names.difference(mask_names)
-    ]
+    cfg = dict(
+        source_dim=args.source_dim,
+        tile_size=args.tile_size,
+        format=args.format,
+    )
+
+    subtile_stats = split_tiles(
+        train_images,
+        masks,
+        args.workers,
+        str(args.outdir) + "/train/train-%06d.tar",
+        **cfg,
+    )
+
+    with open(args.outdir / "stats.csv", "w") as fout:
+        fout.write("tile,frac,status\n")
+        for i, (fname, frac, status) in enumerate(subtile_stats):
+            line = f"{fname},{frac},{status}\n"
+            fout.write(line)
+
+    # rebalance shards so we get similar distributions in all shards
+    with tempfile.TemporaryDirectory(dir=args.tmp_dir) as tmpdir:
+        print(f"Created a temporary directory: {tmpdir}")
+
+        print("Extract source tars")
+        print(sorted((args.outdir / "train").glob("train-00*.tar")))
+        # untar input
+        for tf_name in sorted((args.outdir / "train").glob("train-00*.tar")):
+            with tarfile.open(tf_name) as tf:
+                tf.extractall(tmpdir)
+
+        print("Write balanced shards from deadtree samples")
+        df = pd.read_csv(args.outdir / "stats.csv")
+        df = df[df.status > 0]
+        n_valid = len(df)
+
+        splits = split_df(df, SHARDSIZE)
+        for s_cnt, s in enumerate(splits):
+
+            with tarfile.open(
+                args.outdir / "train" / f"train-balanced-{s_cnt:06}.tar", "w"
+            ) as dst:
+                for i in s:
+                    dst.add(f"{tmpdir}/{i}.mask.{suffix}", f"{i}.mask.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.rgbn.{suffix}", f"{i}.rgbn.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
+
+    # --------------------------------------------------------
+
+    # check if negative samples folder exists
+    mask_dir_ns = args.mask_dir.parent / (args.mask_dir.name + ".neg_sample")
+    if mask_dir_ns.is_dir():
+        masks_ns = sorted(mask_dir_ns.glob("*.tif"))
+        mask_names_ns = {i.name for i in masks_ns}
+
+        train_images_ns = [
+            i for i in images if i.name in image_names.intersection(mask_names_ns)
+        ]
+
+        cfg = dict(
+            source_dim=args.source_dim,
+            tile_size=args.tile_size,
+            format=args.format,
+        )
+        subtile_stats_ns = split_tiles(
+            train_images_ns,
+            masks_ns,
+            args.workers,
+            str(args.outdir) + "/train/train-negativesamples-%06d.tar",
+            **cfg,
+        )
+
+        n_valid_ns = 0
+        with open(args.outdir / "stats_ns.csv", "w") as fout:
+            fout.write("tile,frac,status\n")
+            for i, (fname, frac, status) in enumerate(subtile_stats_ns):
+                # for negative samples we only write the actual subtiles out
+                if float(frac) > 0:
+                    line = f"{fname},{frac},{status}\n"
+                    fout.write(line)
+                    n_valid_ns += 1
+
+        subtile_stats.extend(subtile_stats_ns)
+        n_valid += n_valid_ns
+
+    # create sets for random tile dataset
+    # use all subtiles not covered in train or train-negatviesamples
+
+    n_subtiles = (args.source_dim // args.tile_size) ** 2
+
+    all_subtiles = []
+    for image_name in image_names:
+        all_subtiles.extend(
+            [f"{Path(image_name).stem}_{c:03}" for c in range(n_subtiles)]
+        )
+    all_subtiles = set(all_subtiles)
+
+    # rule of thumb: select 10x the number of dead-tree+negative samples (can be limited later)
+    n_samples = n_valid * OVERSAMPLE_FACTOR
+    random_subtiles = random.sample(
+        tuple(all_subtiles - set([x[0] for x in subtile_stats if int(x[2]) == 1])),
+        n_samples,
+    )
+
+    # the necessary tile to process
+    random_tiles = sorted(list(set([x[:-4] for x in random_subtiles])))
+
+    all_images = sorted(args.image_dir.glob("*.tif"))
+    random_images = [x for x in all_images if x.stem in random_tiles]
+
+    print("STATS")
+    print(len(all_subtiles))
+    print(len(subtile_stats))
+    print(len(random_subtiles))
+    print(len(random_images))
 
     cfg = dict(
         source_dim=args.source_dim,
         tile_size=args.tile_size,
-        outdir=args.outdir,
         format=args.format,
+        valid_subtiles=random_subtiles,  # subset data with random selection of subtiles
+    )
+    subtile_stats_rnd = split_tiles(
+        random_images,
+        [None] * len(random_images),
+        args.workers,
+        str(args.outdir) + "/train/train-randomsamples-%06d.tar",
+        **cfg,
     )
 
-    if args.inference_tiles:
-        split_inference_tiles(inference_images, args.workers, **cfg)
-
-    subtile_stats = split_tiles(train_images, masks, args.workers, **cfg)
-
-    with open(args.outdir / "stats.csv", "w") as fout:
-        fout.write("tile,deadtreepercent\n")
-        for i, (fname, pct) in enumerate(subtile_stats):
-            line = f"{fname},{pct}\n"
+    with open(args.outdir / "stats_rnd.csv", "w") as fout:
+        fout.write("tile,frac,status\n")
+        for i, (fname, frac, status) in enumerate(subtile_stats_rnd):
+            line = f"{fname},{frac},{status}\n"
             fout.write(line)
 
 

@@ -1,6 +1,8 @@
 # dvc project pipeline
 
-# year 2017 inference only (disabled for now)
+# NOTE: see scripts/README.MD for preprocessing from raw data up to the first
+# tracked stage `createtiles`
+
 stages:
   createtiles:
     foreach:
@@ -12,49 +14,41 @@ stages:
         gdal_retile.py 
         -csv locations.csv 
         -v -ps ${source_dim} ${source_dim}
-        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2"
+        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "ALPHA=NO" -co "NUM_THREADS=ALL_CPUS"
         -targetDir data/processed.images.${item} 
-        data/raw/ortho_${item}_ESPG3044.tif
+        data/raw/ortho_ms_${item}_EPSG3044.tif
       deps:
-      - data/raw/ortho_${item}_ESPG3044.tif
+      - data/raw/ortho_ms_${item}_EPSG3044.tif
       params:
       - source_dim
       outs:
       - data/processed.images.${item}
 
-  createtiles-nir:
-    foreach:
-      - 2017
-      - 2019
-    do:
-      cmd: >-
-        mkdir -p data/processed.images.${item}.nir;
-        gdal_retile.py 
-        -csv locations.csv 
-        -v -ps ${source_dim} ${source_dim}
-        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2"
-        -targetDir data/processed.images.${item}.nir 
-        data/raw/ortho_${item}_ESPG3044_NIR.tif
-      deps:
-      - data/raw/ortho_${item}_ESPG3044_NIR.tif
-      params:
-      - source_dim
-      outs:
-      - data/processed.images.${item}.nir
-
+  computestats:
+    cmd: >-
+      python scripts/computestats.py --frac 0.1
+      data/processed.images.2017  
+      data/processed.images.2019 
+    deps:
+      - data/processed.images.2017
+      - data/processed.images.2019
+    outs:
+      - data/processed.images.stats.json
+  
   createmasks:
     cmd: >-
       python scripts/createmasks.py 
-      --bbox data/raw/shapefiles/deadtrees_area/deadtrees_area.shp
       data/processed.images.2019 
       data/processed.masks.2019 
-      data/raw/shapefiles/deadtrees/deadtrees.shp
+      data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
+      --negativesample data/raw/shapefiles/deadtrees_notdead/deadtrees_notdead.shp
     deps:
     - data/processed.images.2019
-    - data/raw/shapefiles/deadtrees
-    - data/raw/shapefiles/deadtrees_area
+    - data/raw/shapefiles/deadtrees_2019
+    - data/raw/shapefiles/deadtrees_notdead
     outs:
     - data/processed.masks.2019
+    - data/processed.masks.2019.neg_sample
 
   createdataset:
     cmd: >-
@@ -68,6 +62,7 @@ stages:
     deps:
     - data/processed.images.2019
     - data/processed.masks.2019 
+    - data/processed.masks.2019.neg_sample 
     params:
     - source_dim
     - createdataset.tile_size
@@ -76,45 +71,7 @@ stages:
     - data/dataset/train
     - data/dataset/stats.csv 
 
-  createbalanced:
-    cmd: >-
-      python scripts/createbalanced.py 
-      data/dataset/stats.csv
-      data/dataset/train 
-      data/dataset/train_balanced 
-      data/dataset/train_balanced_short
-      --format ${file_type}
-      --tmp-dir ./tmp
-    deps:
-    - data/dataset/train
-    - data/dataset/stats.csv
-    params:
-    - file_type
-    outs:
-    - data/dataset/train_balanced
-    - data/dataset/train_balanced_short
-
-  createextra:
-    cmd: >-
-      mkdir -p data/extra;
-      python scripts/createextra.py 
-      data/raw/shapefiles/deadtrees_notdead/deadtrees_notdead.shp
-      data/processed.images.2019
-      data/dataset/train_balanced
-      data/dataset/train_balanced_short 
-      --tmp-dir ./tmp;
-      mv data/extra/ds2-train-00* data/dataset/train_balanced_short/
-      mv data/extra/ds3-train-00* data/dataset/train_balanced_short/
-    deps:
-    - data/raw/shapefiles/deadtrees_notdead
-    - data/processed.images.2019
-    - data/dataset/train_balanced
-    - data/dataset/train_balanced_short
-    outs:
-    - data/dataset/train_balanced_short/ds2-train-0*
-    - data/dataset/train_balanced_short/ds3-train-0*
-
-  # train:
+  # train: do this manually
 
   # inference
   inference:
@@ -127,14 +84,25 @@ stages:
         mkdir -p data/predicted.${item}_preview;
         stdbuf -i0 -o0 -e0 python deadtrees/deployment/tiler.py --all -o data/predicted.${item} data/processed.images.${item};
         gdal_merge.py 
-        -co 'COMPRESS=LZW' 
-        -co 'TILED=YES' 
+        -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "NUM_THREADS=ALL_CPUS"
         -o data/predicted_mosaic_${item}.tif 
-        data/predicted.${item}/ortho_${item}_ESPG3044_*
+        data/predicted.${item}/ortho_ms_${item}_EPSG3044_*
       deps:
       - data/processed.images.${item}
+      - checkpoints/bestmodel.ckpt
       outs:
       - data/predicted.${item}
       - data/predicted.${item}_preview
       - data/predicted_mosaic_${item}.tif
-   
+
+      
+  computestatsinference:
+    cmd: >-
+      python scripts/computestats_inference.py
+      data/predicted.2017  
+      data/predicted.2019 
+    deps:
+      - data/predicted.2017
+      - data/predicted.2019
+    outs:
+      - data/predicted.stats.csv

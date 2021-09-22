@@ -62,8 +62,8 @@ class Tiler:
     def __init__(
         self,
         infile: Optional[Union[str, Path]] = None,
-        tile_shape: Optional[Tuple[int, int]] = (8192, 8192),
-        subtile_shape: Optional[Tuple[int, int]] = (512, 512),
+        tile_shape: Optional[Tuple[int, int]] = (2048, 2048),
+        subtile_shape: Optional[Tuple[int, int]] = (256, 256),
     ) -> None:
         self._infile = infile
         self._tile_shape = tile_shape
@@ -101,13 +101,13 @@ class Tiler:
         )
 
         self._source = rioxarray.open_rasterio(
-            self._infile, chunks={"band": 3, "x": 512, "y": 512}
+            self._infile, chunks={"band": 4, "x": 256, "y": 256}
         )
 
         # define padded indata array and place original data inside
         sv = self._source.values
         if self._tile_shape != self._tile_info.size:
-            self._indata = np.zeros((3, *self._tile_shape), dtype=self._source.dtype)
+            self._indata = np.zeros((4, *self._tile_shape), dtype=self._source.dtype)
             self._indata[:, 0 : sv.shape[1], 0 : sv.shape[2]] = sv
         else:
             self._indata = sv

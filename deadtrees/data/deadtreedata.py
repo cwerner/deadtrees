@@ -35,24 +35,25 @@ class DeadtreeDatasetConfig:
     #  Mean: [0.5795097351074219, 0.5944490432739258, 0.5765123963356018, 0.6499848961830139]
     #  STD: [0.38006964325904846, 0.36243298649787903, 0.3715078830718994, 0.3220028281211853]
 
-    # NOTE: NIR data is fake!!! replace with true mean/ std
+    # new stats (2017, 2019) based on subtiles and subsampled for 0.1
+
     mean = np.array(
         [
-            0.5795097351074219,
-            0.5944490432739258,
-            0.5765123963356018,
-            0.6499848961830139,
+            0.3601569859,
+            0.3876775115,
+            0.3552107839,
+            0.4885512601,
         ]
     )
     std = np.array(
         [
-            0.38006964325904846,
-            0.36243298649787903,
-            0.3715078830718994,
-            0.3220028281211853,
+            0.2393053295,
+            0.2128771033,
+            0.2069098922,
+            0.185414092,
         ]
     )
-    tile_size = 512
+    tile_size = 256
     fractions = [0.7, 0.2, 0.1]
 
 
@@ -104,7 +105,7 @@ def image_decoder(data):
     with io.BytesIO(data) as stream:
         img = PIL.Image.open(stream)
         img.load()
-        img = img.convert("RGB")
+        img = img.convert("RGBA")
     return np.asarray(img)
 
 
@@ -116,25 +117,16 @@ def mask_decoder(data):
     return np.asarray(img)
 
 
-def sample_decoder(
-    sample, img_suffix="rgb.png", nir_suffix="nir.png", msk_suffix="msk.png"
-):
-    """Decode data (image, nir_image, mask, stats) from sharded datastore"""
+def sample_decoder(sample, img_suffix="rgbn.tif", msk_suffix="mask.tif"):
+    """Decode data (image, mask, stats) from sharded datastore"""
 
     assert img_suffix in sample, "Wrong image suffix provided"
 
-    if nir_suffix in sample:
-        # fuse rgb and nir to 4 channel image
-        img = image_decoder(sample[img_suffix])
-        nir_img = mask_decoder(
-            sample[img_suffix]
-        )  # nir image is single channel so we can use the mask decoder
-        sample[img_suffix] = np.concatenate((img, nir_img[..., np.newaxis]), axis=2)
-        del sample[nir_suffix]
-    else:
-        sample[img_suffix] = image_decoder(sample[img_suffix])
+    sample[img_suffix] = image_decoder(sample[img_suffix])
+
     if "txt" in sample:
         sample["txt"] = {"file": sample["__key__"], "frac": float(sample["txt"])}
+
     if msk_suffix in sample:
         sample[msk_suffix] = mask_decoder(sample[msk_suffix])
     return sample
@@ -169,13 +161,20 @@ val_transform = A.Compose(
 )
 
 
-def transform(sample, transform_func=None):
+def transform(sample, transform_func=None, in_channels=4, classes=3):
+    """Apply transform func to sample and modify channels and/ or classes as specified in training setup"""
     if transform_func:
         transformed = transform_func(
             image=sample["image"].copy(), mask=sample["mask"].copy()
         )
         sample["image"] = transformed["image"]
         sample["mask"] = transformed["mask"]
+
+    sample["image"] = sample["image"][0:in_channels]
+
+    if classes == 2:
+        sample["mask"][sample["mask"] > 1] = 1
+
     return sample
 
 
@@ -216,8 +215,9 @@ class DeadtreesDataModule(pl.LightningDataModule):
     def setup(
         self,
         split_fractions: List[float] = DeadtreeDatasetConfig.fractions,
+        in_channels: Optional[int] = 4,  # change to 3 for rgb training instead of rgbn
+        classes: Optional[int] = 3,  # change to 2 for single class (+bg) setup
     ) -> None:
-
         train_shards, valid_shards, test_shards = split_shards(
             self.data_shards, split_fractions
         )
@@ -232,8 +232,8 @@ class DeadtreesDataModule(pl.LightningDataModule):
             shards: List[str],
             bs: int,
             transform_func: Callable,
-            shuffle: Optional[int] = 64,
-            shard_size: Optional[int] = 64,
+            shuffle: Optional[int] = 128,
+            shard_size: Optional[int] = 128,
         ) -> wds.WebDataset:
             return (
                 wds.WebDataset(
@@ -242,8 +242,15 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 )
                 .shuffle(shuffle)
                 .map(sample_decoder)
-                .rename(image="rgb.png", mask="msk.png", stats="txt")
-                .map(partial(transform, transform_func=transform_func))
+                .rename(image="rgbn.tif", mask="mask.tif", stats="txt")
+                .map(
+                    partial(
+                        transform,
+                        transform_func=transform_func,
+                        in_channels=in_channels,
+                        classes=classes,
+                    )
+                )
                 .to_tuple("image", "mask", "stats")
             )
 

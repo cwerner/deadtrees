@@ -39,10 +39,17 @@ class SemSegment(pl.LightningModule):  # type: ignore
                 "Currently only Unet, ResUnet, Unet++, ResUnet++, and EfficientUnet++ architectures are supported"
             )
 
-        del network_conf.architecture
-        self.model = Model(**network_conf)
+        # Model does not accept "architecture" as an argument, but we need to store it in hparams for inference
+        # TODO: cleanup?
+        clean_network_conf = network_conf.copy()
+        del clean_network_conf.architecture
+        self.model = Model(**clean_network_conf)
         # self.model.apply(initialize_weights)
+
         self.save_hyperparameters()  # type: ignore
+
+        self.classes = range(self.hparams["network_conf"]["classes"])
+        self.in_channels = self.hparams["network_conf"]["in_channels"]
 
         # CHECK:
         # - softmax yes/ no ?
@@ -67,12 +74,12 @@ class SemSegment(pl.LightningModule):  # type: ignore
         #       check if classes=[1] is correct
         self.criterion = smp.losses.DiceLoss(
             mode="multiclass",
-            classes=[1],
+            classes=self.classes[1:],  # ignore background == 0
             # log_loss=True,
         )
 
-        self.criterion2 = smp.losses.SoftCrossEntropyLoss(
-            smooth_factor=0.1,
+        self.criterion2 = smp.losses.FocalLoss(
+            mode="multiclass",
         )
 
         self.dice_metric = smp.utils.metrics.Fscore(
@@ -111,8 +118,8 @@ class SemSegment(pl.LightningModule):  # type: ignore
         pred = self.model(img)
 
         loss_dice = self.criterion(pred, mask)
-        loss_ce = self.criterion2(pred, mask)
-        loss = loss_dice + loss_ce
+        loss_focal = self.criterion2(pred, mask.squeeze(1))
+        loss = loss_dice * 0.5 + loss_focal * 0.5
 
         y_pred = pred.softmax(dim=1)
         y = torch.zeros_like(pred).scatter_(1, mask, 1)
@@ -125,7 +132,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("train/dice_with_bg", dice_score_with_bg)
         self.log("train/total_loss", loss)
         self.log("train/dice_loss", loss_dice)
-        self.log("train/ce_loss", loss_ce)
+        self.log("train/focal_loss", loss_focal)
 
         # track training batch files
         self.stats["train"].update([x["file"] for x in stats])
@@ -150,8 +157,8 @@ class SemSegment(pl.LightningModule):  # type: ignore
         pred = self.model(img)
 
         loss_dice = self.criterion(pred, mask.unsqueeze(1))
-        loss_ce = self.criterion2(pred, mask.unsqueeze(1))
-        loss = loss_dice + loss_ce
+        loss_focal = self.criterion2(pred, mask)  # .unsqueeze(1))
+        loss = loss_dice * 0.5 + loss_focal * 0.5
 
         y_pred = pred.softmax(dim=1)
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
@@ -164,7 +171,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("val/dice_with_bg", dice_score_with_bg)
         self.log("val/total_loss", loss)
         self.log("val/dice_loss", loss_dice)
-        self.log("val/ce_loss", loss_ce)
+        self.log("val/focal_loss", loss_focal)
 
         if batch_idx == 0:
             sample_chart = show(
