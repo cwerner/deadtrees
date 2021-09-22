@@ -168,3 +168,18 @@ stages:
     - path: data/processed.images.stats.json
       md5: 453f256a6c2bf5359cf3e85b420a54e0
       size: 585
+  computestatsinference:
+    cmd: 'python scripts/computestats_inference.py data/predicted.2017   data/predicted.2019 '
+    deps:
+    - path: data/predicted.2017
+      md5: 5f6c51487c2ea4ffff3430d44e694799.dir
+      size: 599348567
+      nfiles: 20827
+    - path: data/predicted.2019
+      md5: 7fe1bc28db7505e7db29ee31872ee0a2.dir
+      size: 480433774
+      nfiles: 16227
+    outs:
+    - path: data/predicted.stats.csv
+      md5: 6d86b56ec9f16c4a87f637e03efd162c
+      size: 1323925
