@@ -105,10 +105,9 @@ class SemSegment(pl.LightningModule):  # type: ignore
         img, mask, stats = batch["main"]
 
         # grab extra datasets and concat tensors
-        extra_imgs, extra_masks, extra_stats = list(
-            zip(*[v for k, v in batch.items() if k.startswith("extra")])
-        )
-        if len(extra_imgs) > 0:
+        extra = [v for k, v in batch.items() if k.startswith("extra")]
+        if extra:
+            extra_imgs, extra_masks, extra_stats = list(zip(*extra))
             img = torch.cat((img, *extra_imgs), dim=0)
             mask = torch.cat((mask, *extra_masks), dim=0)
             stats.extend(sum(extra_stats, []))
@@ -144,10 +143,9 @@ class SemSegment(pl.LightningModule):  # type: ignore
         img, mask, stats = batch["main"]
 
         # grab extra datasets and concat tensors
-        extra_imgs, extra_masks, extra_stats = list(
-            zip(*[v for k, v in batch.items() if k.startswith("extra")])
-        )
-        if len(extra_imgs) > 0:
+        extra = [v for k, v in batch.items() if k.startswith("extra")]
+        if extra:
+            extra_imgs, extra_masks, extra_stats = list(zip(*extra))
             img = torch.cat((img, *extra_imgs), dim=0)
             mask = torch.cat((mask, *extra_masks), dim=0)
             stats.extend(sum(extra_stats, []))
