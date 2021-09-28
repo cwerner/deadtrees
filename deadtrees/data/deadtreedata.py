@@ -196,12 +196,12 @@ class DeadtreesDataModule(pl.LightningDataModule):
         self.test_dataloader_conf = test_dataloader_conf or OmegaConf.create()
 
         self.data_shards_extra = []
-        self.batch_size_extra = None
+        self.batch_size_extra = []
 
-        if pattern_extra:
+        if pattern_extra and batch_size_extra:
             for pcnt, p in enumerate(pattern_extra):
                 self.data_shards_extra.append(sorted(Path(data_dir).glob(p)))
-            if batch_size_extra:
+            if len(batch_size_extra) > 0:
                 if len(batch_size_extra) != len(pattern_extra):
                     raise ValueError(
                         "Len of <pattern_extra> and <batch_size_extra> don't match"
