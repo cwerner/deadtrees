@@ -44,7 +44,7 @@ setup(
         "pytorch-lightning>=1.3.7",
         "rich",
         "tqdm",
-        "webdataset>=0.1.62",
+        "webdataset==0.1.62",
         "segmentation_models_pytorch>=0.2.0",
     ],
     # install in editable mode: pip install -e ".[train,preprocess]" or
