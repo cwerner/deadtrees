@@ -67,9 +67,9 @@ stages:
       md5: 5d5e6ab2648bdb6b7846d4c8655a72a8
       size: 2539255
     - path: data/dataset/train
-      md5: 155ce2ddabeab3e619b59e016093ae30.dir
-      size: 6895349760
-      nfiles: 162
+      md5: 09daf34f435e8a47ce8879a6f7a9899e.dir
+      size: 10832783360
+      nfiles: 208
   createbalanced:
     cmd: python scripts/createbalanced.py  data/dataset/stats.csv data/dataset/train  data/dataset/train_balanced  data/dataset/train_balanced_short
       --format TIFF --tmp-dir ./tmp

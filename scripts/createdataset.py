@@ -5,9 +5,8 @@ import random
 import tarfile
 import tempfile
 from functools import partial, reduce
-from itertools import islice
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Iterable, List, Optional, Tuple
 
 import psutil
 import webdataset as wds
@@ -15,10 +14,10 @@ import webdataset as wds
 import numpy as np
 import pandas as pd
 import rioxarray
-import xarray as xr
 from PIL import Image
-from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
+
+random.seed(42)
 
 SHARDSIZE = 128
 OVERSAMPLE_FACTOR = 2  # factor of random samples to dt + ndt samples
@@ -37,7 +36,7 @@ def split_df(
 
     df = df.sort_values(by=refcol, ascending=False).reset_index(drop=True)
 
-    n_fractions = math.floor(len(df) / size)
+    n_fractions = math.ceil(len(df) / size)
     fractions = [1 / n_fractions] * n_fractions
     all_fractions = sum(fractions)
     status = [0] * n_fractions
@@ -262,6 +261,8 @@ def main():
     else:
         raise NotImplementedError
 
+    SHUFFLE = True  # shuffle subtile order within shards (with fixed seed)
+
     # subtile_stats = split_tiles(train_files)
     images = sorted(args.image_dir.glob("*.tif"))
     masks = sorted(args.mask_dir.glob("*.tif"))
@@ -297,7 +298,6 @@ def main():
         print(f"Created a temporary directory: {tmpdir}")
 
         print("Extract source tars")
-        print(sorted((args.outdir / "train").glob("train-00*.tar")))
         # untar input
         for tf_name in sorted((args.outdir / "train").glob("train-00*.tar")):
             with tarfile.open(tf_name) as tf:
@@ -309,11 +309,18 @@ def main():
         n_valid = len(df)
 
         splits = split_df(df, SHARDSIZE)
+
+        # drop incomplete shards
+        splits = [x for x in splits if len(x) == SHARDSIZE]
+
         for s_cnt, s in enumerate(splits):
 
             with tarfile.open(
                 args.outdir / "train" / f"train-balanced-{s_cnt:06}.tar", "w"
             ) as dst:
+
+                if SHUFFLE:
+                    random.shuffle(s)
                 for i in s:
                     dst.add(f"{tmpdir}/{i}.mask.{suffix}", f"{i}.mask.{suffix}")
                     dst.add(f"{tmpdir}/{i}.rgbn.{suffix}", f"{i}.rgbn.{suffix}")
@@ -407,6 +414,26 @@ def main():
         for i, (fname, frac, status) in enumerate(subtile_stats_rnd):
             line = f"{fname},{frac},{status}\n"
             fout.write(line)
+
+    # also create combo dataset
+    # source A: train-balanced, source B: randomsample
+    # NOTE: combo dataset has double the defdault shardsize (2*128), samples alternate between regular and random sample
+    train_balanced_shards = [
+        str(x) for x in sorted((args.outdir / "train").glob("train-balanced*"))
+    ]
+    train_balanced_shards_rnd = [
+        str(x) for x in sorted((args.outdir / "train").glob("train-random*"))
+    ]
+    train_balanced_shards_rnd = train_balanced_shards_rnd[: len(train_balanced_shards)]
+
+    shardpattern = str(args.outdir) + "/train/train-combo-%06d.tar"
+
+    with wds.ShardWriter(shardpattern, maxcount=SHARDSIZE * 2) as sink:
+        for shardA, shardB in zip(train_balanced_shards, train_balanced_shards_rnd):
+
+            for sA, sB in zip(wds.WebDataset(shardA), wds.WebDataset(shardB)):
+                sink.write(sA)
+                sink.write(sB)
 
 
 if __name__ == "__main__":
