@@ -6,6 +6,7 @@
 Data is sources from the [The luxembourgish data platform](https://data.public.lu). 
 
 - 2017: [RGB Image](https://s3.eu-central-1.amazonaws.com/download.data.public.lu/resources/orthophoto-officelle-du-grand-duche-de-luxembourg-edition-2017/20180914-084015/ortho2017_RVB_pays.jp2), [NIR Image](https://s3.eu-central-1.amazonaws.com/download.data.public.lu/resources/orthophoto-officielle-du-grand-duche-de-luxembourg-edition-2017/20210720-085210/LUX17_CIR_v3.jp2)
+- 2018: [RGB Image](https://s3.eu-central-1.amazonaws.com/download.data.public.lu/resources/orthophoto-officelle-du-grand-duche-de-luxembourg-edition-2018/ortho2018_RGB_pays.jp2), [NIR Image](https://s3.eu-central-1.amazonaws.com/download.data.public.lu/resources/orthophoto-officelle-du-grand-duche-de-luxembourg-edition-2018/ortho2018_CIR_pays.jp2)
 - 2019: [RGB Image](https://s3.eu-central-1.amazonaws.com/download.data.public.lu/resources/orthophoto-officelle-du-grand-duche-de-luxembourg-edition-2019/20191202-111633/ortho_2019.jp2), [NIR Image](https://s3.eu-central-1.amazonaws.com/download.data.public.lu/resources/orthophoto-officelle-du-grand-duche-de-luxembourg-edition-2019/20191202-111633/ortho_2019ir.jp2)
 
 Data is provided as JPEG2000 encoded 3-band images with 20cm resolution and projected in EPSG:2169 (LUREF).  
@@ -19,6 +20,11 @@ Prior to the DVC-tracked preprocessing steps the raw data was reorganized as fol
 YEAR=2017
 RGB=ortho2017_RVB_pays.jp2
 NIR=LUX17_CIR_v3.jp2
+
+# year 2018 data
+YEAR=2018
+RGB=ortho2018_RGB_pays.jp2
+NIR=ortho2018_CIR_pays.jp2
 
 # year 2019 data
 #YEAR=2019
