@@ -178,14 +178,14 @@ stages:
     cmd: 'python scripts/computestats_inference.py data/predicted.2017   data/predicted.2019 '
     deps:
     - path: data/predicted.2017
-      md5: 59d606868832923b01f199bf9e2b7f2b.dir
-      size: 595566709
+      md5: d90f790fd888a18f5143915f50c1ca1e.dir
+      size: 593340873
       nfiles: 20827
     - path: data/predicted.2019
-      md5: 0ca1283e74cf8bff3bbfd81ce2ea3add.dir
-      size: 482948162
+      md5: 4dcd85d9bc3dac83be89d8453ba2a084.dir
+      size: 475391400
       nfiles: 16227
     outs:
     - path: data/predicted.stats.csv
-      md5: daa22b63714a051ceeda688b93875bce
-      size: 1330306
+      md5: ba132c0b453a9b1dfb0f6fd56a8353b4
+      size: 1309714
