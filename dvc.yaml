@@ -7,7 +7,9 @@ stages:
   createtiles:
     foreach:
       - 2017
+      - 2018
       - 2019
+      - 2020
     do:
       cmd: >-
         mkdir -p data/processed.images.${item};
@@ -28,10 +30,14 @@ stages:
     cmd: >-
       python scripts/computestats.py --frac 0.1
       data/processed.images.2017  
+      data/processed.images.2018  
       data/processed.images.2019 
+      data/processed.images.2020 
     deps:
       - data/processed.images.2017
+      - data/processed.images.2018
       - data/processed.images.2019
+      - data/processed.images.2020 
     outs:
       - data/processed.images.stats.json
   
@@ -81,8 +87,7 @@ stages:
     do:
       cmd: >-
         mkdir -p data/predicted.${item};
-        mkdir -p data/predicted.${item}_preview;
-        stdbuf -i0 -o0 -e0 python scripts/inference.py --all -o data/predicted.${item} data/processed.images.${item};
+        stdbuf -i0 -o0 -e0 python scripts/inference.py --all --nopreview -o data/predicted.${item} data/processed.images.${item};
         gdal_merge.py 
         -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "NUM_THREADS=ALL_CPUS"
         -o data/predicted_mosaic_${item}.tif 
@@ -92,7 +97,6 @@ stages:
       - checkpoints/bestmodel.ckpt
       outs:
       - data/predicted.${item}
-      - data/predicted.${item}_preview
       - data/predicted_mosaic_${item}.tif
 
       
