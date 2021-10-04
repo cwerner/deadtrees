@@ -41,6 +41,14 @@ def main():
         help="process complete directory",
     )
 
+    parser.add_argument(
+        "--nopreview",
+        action="store_false",
+        dest="preview",
+        default=True,
+        help="produce preview images",
+    )
+
     args = parser.parse_args()
 
     bs = 32
@@ -95,8 +103,9 @@ def main():
         tiler.put_batches(np.concatenate(out_batches, axis=0))
         tiler.write_file(OUTFILE)
 
-        image = Image.fromarray(np.uint8(tiler._target.values * 255), "L")
-        image.save(OUTFILE_PREVIEW)
+        if args.preview:
+            image = Image.fromarray(np.uint8(tiler._target.values * 255), "L")
+            image.save(OUTFILE_PREVIEW)
 
 
 if __name__ == "__main__":
