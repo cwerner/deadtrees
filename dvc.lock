@@ -181,7 +181,6 @@ stages:
     outs:
     - path: data/processed.images.stats.json
       md5: 1ed04cbf29c00ed439bfa15bc170c5cb
-      size: 662
   computestatsinference:
     cmd: 'python scripts/computestats_inference.py data/predicted.2017   data/predicted.2019 '
     deps:

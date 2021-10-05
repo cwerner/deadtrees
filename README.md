@@ -28,8 +28,17 @@ Map dead trees from ortho photos. A Unet (semantic segmentation model) is traine
 git clone https://github.com/cwerner/deadtrees
 cd deadtrees
 
-# [OPTIONAL] create virtual environment (using venve, pyenv, etc.) 
-# and activate it
+# [OPTIONAL] create virtual environment (using venve, pyenv, etc.) and activate it. An easy way to get a base system configured is to use micromamba (a faster alternative to anaconda) and the fastchan channel to install the notoriously finicky pytorch base dependencies and cuda setup
+
+wget -qO- https://micromamba.snakepit.net/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
+
+# init shell
+./bin/micromamba shell init -s bash -p ~/micromamba
+source ~/.bashrc
+
+micromamba create -p deadtrees python=3.9 -c conda-forge
+micromamba activate deadtrees
+micromamba install pytorch pytorchvision albumentations -c fastchan -c conda-forge
 
 # install requirements (basic requirements):
 pip install -e . 
@@ -45,10 +54,19 @@ pip install -e ".[preprocess]"
 pip install -e ".[all]"
 ```
 
-Train model with default configuration:
+Download the dataset from S3 (output of the createdataset dvc stage)
 ```yaml
-cd scripts
-python train.py
+dvc pull createdataset
+```
+
+Specify the location of the training dataset on your system by creating the file  `.env` with the following syntax:
+```
+export TRAIN_DATASET_PATH="/path_to_my_repos/deadtrees/data/dataset/train"
+```
+
+Train model with default configuration (you can adjust the training config on the commandline or by editing the hydra yaml files in `conf`): 
+```yaml
+python scripts/train.py
 ```
 
 <br>
