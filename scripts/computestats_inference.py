@@ -1,5 +1,5 @@
 import argparse
-from functools import partial
+from functools import partial, reduce
 from pathlib import Path
 
 from joblib import delayed, Parallel
@@ -36,8 +36,9 @@ def main():
 
     args = parser.parse_args()
 
-    dfs = {}
-    for year in [2017, 2019]:
+    dfs = []
+    years = [2017, 2018, 2019, 2020]
+    for year in years:
         inpath = None
         for dpath in args.datapath:
             if f"predicted.{year}" in str(dpath):
@@ -56,13 +57,26 @@ def main():
         df["deadarea_m2"] = (
             (df["cl_1"] + df["cl_2"]) * 0.200022269188281 * 0.200022454940277
         ).round(1)
-        dfs[year] = df
+        dfs.append(df)
 
-    dfall = pd.merge(
-        dfs[2017], dfs[2019], how="outer", on="tile", suffixes=("_2017", "_2019")
-    )
+    # add suffixes to each df (but remove if again form the join column <tile>)
+    dfs = [df.add_suffix(f"_{s}") for df, s in zip(dfs, years)]
+    dfs = [df.rename(columns={f"tile_{s}": "tile"}) for df, s in zip(dfs, years)]
+
+    dfall = reduce(lambda x, y: pd.merge(x, y, on=["tile"], how="outer"), dfs)
+
+    # cleanup, drop all but one columns total and move tile, total cols to front
+    dfall = dfall.rename(columns={f"total_{years[0]}": "total"})
+    dfall = dfall[dfall.columns.drop(list(dfall.filter(regex="total_")))]
+
+    colnames = list(dfall)
+    colnames.insert(0, colnames.pop(colnames.index("total")))
+    colnames.insert(0, colnames.pop(colnames.index("tile")))
+    dfall = dfall.loc[:, colnames].convert_dtypes()
     dfall.to_csv(args.datapath[0].parent / "predicted.stats.csv", index=False)
 
+
+# merge
 
 if __name__ == "__main__":
     main()
