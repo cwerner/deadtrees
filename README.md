@@ -38,7 +38,7 @@ source ~/.bashrc
 
 micromamba create -p deadtrees python=3.9 -c conda-forge
 micromamba activate deadtrees
-micromamba install pytorch pytorchvision albumentations -c fastchan -c conda-forge
+micromamba install pytorch torchvision albumentations -c fastchan -c conda-forge
 
 # install requirements (basic requirements):
 pip install -e . 
