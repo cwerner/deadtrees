@@ -12,6 +12,8 @@ from albumentations.pytorch import ToTensorV2
 import numpy as np
 import PIL
 import pytorch_lightning as pl
+import torch
+from deadtrees.loss.losses import class2one_hot, one_hot2dist
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.trainer.supporters import CombinedLoader
 from torch.utils.data import DataLoader
@@ -134,19 +136,33 @@ val_transform = A.Compose(
 )
 
 
-def transform(sample, transform_func=None, in_channels=4, classes=3):
+def transform(
+    sample: dict,
+    *,
+    transform_func: Optional[Callable] = None,
+    in_channels: Optional[int] = 4,
+    classes: Optional[int] = 3,
+    distmap: Optional[bool] = False,
+):
     """Apply transform func to sample and modify channels and/ or classes as specified in training setup"""
     if transform_func:
         transformed = transform_func(
             image=sample["image"].copy(), mask=sample["mask"].copy()
         )
-        sample["image"] = transformed["image"]
-        sample["mask"] = transformed["mask"]
+        sample["image"] = transformed["image"].float()
+        sample["mask"] = transformed["mask"].long()
 
     sample["image"] = sample["image"][0:in_channels]
 
     if classes == 2:
         sample["mask"][sample["mask"] > 1] = 1
+
+    if distmap:
+        x = class2one_hot(torch.unsqueeze(sample["mask"], dim=0), K=classes)[0]
+        x = one_hot2dist(x.cpu().numpy(), resolution=[1, 1])
+        sample["distmap"] = torch.tensor(x, dtype=torch.float32)
+    else:
+        sample["distmap"] = None
 
     return sample
 
@@ -222,9 +238,10 @@ class DeadtreesDataModule(pl.LightningDataModule):
                         transform_func=transform_func,
                         in_channels=in_channels,
                         classes=classes,
+                        distmap=True,
                     )
                 )
-                .to_tuple("image", "mask", "stats")
+                .to_tuple("image", "mask", "distmap", "stats")
             )
 
         self.train_data = build_dataset(

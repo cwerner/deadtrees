@@ -8,6 +8,13 @@ import segmentation_models_pytorch as smp
 import pandas as pd
 import pytorch_lightning as pl
 import torch
+from deadtrees.loss.losses import (
+    BoundaryLoss,
+    class2one_hot,
+    CrossEntropy,
+    GeneralizedDice,
+    simplex,
+)
 from deadtrees.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
 from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
@@ -51,36 +58,12 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.classes = range(self.hparams["network_conf"]["classes"])
         self.in_channels = self.hparams["network_conf"]["in_channels"]
 
-        # CHECK:
-        # - softmax yes/ no ?
-        # - incl_background yes/ no ?
-
-        # self.criterion = DiceCELoss(
-        #     softmax=True,
-        #     include_background=False,
-        #     to_onehot_y=True,
-        # )
-
-        # Reference:
-        # Sudre, C. et. al. (2017) Generalised Dice overlap as a deep learning loss
-        #    function for highly unbalanced segmentations. DLMIA 2017.
-        # self.criterion = GeneralizedDiceLoss(
-        #     softmax=True,
-        #     include_background=False,
-        #     to_onehot_y=True,
-        # )
-
-        # TODO: check if this is actually generalized dice loss???
-        #       check if classes=[1] is correct
-        self.criterion = smp.losses.DiceLoss(
-            mode="multiclass",
-            classes=self.classes[1:],  # ignore background == 0
-            # log_loss=True,
-        )
-
-        self.criterion2 = smp.losses.FocalLoss(
-            mode="multiclass",
-        )
+        # new losses
+        self.alpha = 0.01  # nake this a hyperparameter and/ or scale with epoch
+        classes_considered = list(range(1, len(self.classes)))
+        self.generalized_dice_loss = GeneralizedDice(idc=classes_considered)
+        self.boundary_loss = BoundaryLoss(idc=classes_considered)
+        # self.ce_loss = CrossEntropy(idc=classes_considered)
 
         self.dice_metric = smp.utils.metrics.Fscore(
             ignore_channels=[0],
@@ -101,27 +84,41 @@ class SemSegment(pl.LightningModule):  # type: ignore
             del tqdm_dict["v_num"]
         return tqdm_dict
 
+    def _concat_extra(self, img, mask, distmap, stats, *, extra):
+        extra_imgs, extra_masks, extra_distmaps, extra_stats = list(zip(*extra))
+        img = torch.cat((img, *extra_imgs), dim=0)
+        mask = torch.cat((mask, *extra_masks), dim=0)
+        distmap = torch.cat((distmap, *extra_distmaps), dim=0)
+        stats.extend(sum(extra_stats, []))
+        return (img, mask, distmap, stats)
+
     def training_step(self, batch, batch_idx):
-        img, mask, stats = batch["main"]
+        img, mask, distmap, stats = batch["main"]
 
         # grab extra datasets and concat tensors
         extra = [v for k, v in batch.items() if k.startswith("extra")]
         if extra:
-            extra_imgs, extra_masks, extra_stats = list(zip(*extra))
-            img = torch.cat((img, *extra_imgs), dim=0)
-            mask = torch.cat((mask, *extra_masks), dim=0)
-            stats.extend(sum(extra_stats, []))
+            img, mask, distmap, stats = self._concat_extra(
+                img, mask, distmap, stats, extra=extra
+            )
 
-        img = img.float()
-        mask = mask.long().unsqueeze(1)
+        # mask = mask.unsqueeze(1)
         pred = self.model(img)
 
-        loss_dice = self.criterion(pred, mask)
-        loss_focal = self.criterion2(pred, mask.squeeze(1))
-        loss = loss_dice * 0.5 + loss_focal * 0.5
+        # loss_dice = self.criterion(pred, mask)
+        # loss_focal = self.criterion2(pred, mask.squeeze(1))
+        # loss = loss_dice * 0.5 + loss_focal * 0.5
 
+        y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
         y_pred = pred.softmax(dim=1)
-        y = torch.zeros_like(pred).scatter_(1, mask, 1)
+
+        loss_gd = self.generalized_dice_loss(y_pred, y)
+        loss_bd = self.boundary_loss(y_pred, distmap)
+        # loss_ce = self.ce_loss(y_pred, y)
+
+        frac2 = min(self.alpha * (self.current_epoch + 1), 0.90)
+        frac1 = 1 - frac2
+        loss = frac1 * loss_gd + frac2 * loss_bd
 
         # TODO: simplify one-hot step
         dice_score = self.dice_metric(y_pred, y)
@@ -130,8 +127,10 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("train/dice", dice_score)
         self.log("train/dice_with_bg", dice_score_with_bg)
         self.log("train/total_loss", loss)
-        self.log("train/dice_loss", loss_dice)
-        self.log("train/focal_loss", loss_focal)
+        self.log("train/dice_loss", loss_gd)
+        # self.log("train/ce_loss", loss_ce)
+        self.log("train/boundary_loss", loss_bd)
+        self.log("train/bdloss_frac", min(self.alpha * (self.current_epoch + 1), 0.90))
 
         # track training batch files
         self.stats["train"].update([x["file"] for x in stats])
@@ -139,27 +138,32 @@ class SemSegment(pl.LightningModule):  # type: ignore
         return loss
 
     def validation_step(self, batch, batch_idx):
-
-        img, mask, stats = batch["main"]
+        img, mask, distmap, stats = batch["main"]
 
         # grab extra datasets and concat tensors
         extra = [v for k, v in batch.items() if k.startswith("extra")]
         if extra:
-            extra_imgs, extra_masks, extra_stats = list(zip(*extra))
-            img = torch.cat((img, *extra_imgs), dim=0)
-            mask = torch.cat((mask, *extra_masks), dim=0)
-            stats.extend(sum(extra_stats, []))
+            img, mask, distmap, stats = self._concat_extra(
+                img, mask, distmap, stats, extra=extra
+            )
 
-        img = img.float()
-        mask = mask.long()
         pred = self.model(img)
 
-        loss_dice = self.criterion(pred, mask.unsqueeze(1))
-        loss_focal = self.criterion2(pred, mask)  # .unsqueeze(1))
-        loss = loss_dice * 0.5 + loss_focal * 0.5
+        # loss_dice = self.criterion(pred, mask.unsqueeze(1))
+        # loss_focal = self.criterion2(pred, mask)  # .unsqueeze(1))
+        # loss = loss_dice * 0.5 + loss_focal * 0.5
 
-        y_pred = pred.softmax(dim=1)
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
+        y_pred = pred.softmax(dim=1)
+
+        loss_gd = self.generalized_dice_loss(y_pred, y)
+        loss_bd = self.boundary_loss(y_pred, distmap)
+        # loss_ce = self.ce_loss(y_pred, y)
+
+        frac2 = min(self.alpha * (self.current_epoch + 1), 0.90)
+        frac1 = 1 - frac2
+
+        loss = frac1 * loss_gd + frac2 * loss_bd
 
         # TODO: simplify one-hot step
         dice_score = self.dice_metric(y_pred, y)
@@ -168,8 +172,9 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("val/dice", dice_score)
         self.log("val/dice_with_bg", dice_score_with_bg)
         self.log("val/total_loss", loss)
-        self.log("val/dice_loss", loss_dice)
-        self.log("val/focal_loss", loss_focal)
+        self.log("val/dice_loss", loss_gd)
+        # self.log("val/ce_loss", loss_ce)
+        self.log("val/boundary_loss", loss_bd)
 
         if batch_idx == 0:
             sample_chart = show(
@@ -201,9 +206,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         return loss
 
     def test_step(self, batch, batch_idx):
-        img, mask, stats = batch
-        img = img.float()
-        mask = mask.long()
+        img, mask, distmap, stats = batch
         pred = self.model(img)
 
         y_pred = pred.softmax(dim=1)
