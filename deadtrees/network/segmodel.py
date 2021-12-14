@@ -12,6 +12,7 @@ from deadtrees.loss.losses import (
     BoundaryLoss,
     class2one_hot,
     CrossEntropy,
+    FocalLoss,
     GeneralizedDice,
     simplex,
 )
@@ -63,6 +64,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         classes_considered = list(range(1, len(self.classes)))
         self.generalized_dice_loss = GeneralizedDice(idc=classes_considered)
         self.boundary_loss = BoundaryLoss(idc=classes_considered)
+        self.focal_loss = FocalLoss(idc=self.classes, gamma=2)
         # self.ce_loss = CrossEntropy(idc=classes_considered)
 
         self.dice_metric = smp.utils.metrics.Fscore(
@@ -114,11 +116,12 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         loss_gd = self.generalized_dice_loss(y_pred, y)
         loss_bd = self.boundary_loss(y_pred, distmap)
-        # loss_ce = self.ce_loss(y_pred, y)
+        loss_fo = self.focal_loss(y_pred, y)
 
-        frac2 = min(self.alpha * (self.current_epoch + 1), 0.90)
-        frac1 = 1 - frac2
-        loss = frac1 * loss_gd + frac2 * loss_bd
+        # frac2 = min(self.alpha * (self.current_epoch + 1), 0.90)
+        # frac1 = 1 - frac2
+        # loss = frac1 * loss_gd + frac2 * loss_bd + loss_fo
+        loss = loss_gd * 0.1 + loss_bd + loss_fo
 
         # TODO: simplify one-hot step
         dice_score = self.dice_metric(y_pred, y)
@@ -128,9 +131,9 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("train/dice_with_bg", dice_score_with_bg)
         self.log("train/total_loss", loss)
         self.log("train/dice_loss", loss_gd)
-        # self.log("train/ce_loss", loss_ce)
+        self.log("train/focal_loss", loss_fo)
         self.log("train/boundary_loss", loss_bd)
-        self.log("train/bdloss_frac", min(self.alpha * (self.current_epoch + 1), 0.90))
+        # self.log("train/bdloss_frac", min(self.alpha * (self.current_epoch + 1), 0.90))
 
         # track training batch files
         self.stats["train"].update([x["file"] for x in stats])
@@ -156,14 +159,25 @@ class SemSegment(pl.LightningModule):  # type: ignore
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
         y_pred = pred.softmax(dim=1)
 
+        # print(simplex(y))
+        # print(simplex(y_pred))
+        # print(y.shape)
+        # print(y_pred.shape)
+
         loss_gd = self.generalized_dice_loss(y_pred, y)
         loss_bd = self.boundary_loss(y_pred, distmap)
-        # loss_ce = self.ce_loss(y_pred, y)
+        loss_fo = self.focal_loss(y_pred, y)
 
-        frac2 = min(self.alpha * (self.current_epoch + 1), 0.90)
-        frac1 = 1 - frac2
+        # frac2 = min(self.alpha * (self.current_epoch + 1), 0.90)
+        # frac1 = 1 - frac2
 
-        loss = frac1 * loss_gd + frac2 * loss_bd
+        # loss = frac1 * loss_gd + frac2 * loss_bd + loss_fo
+        loss = loss_gd * 0.1 + loss_bd + loss_fo
+
+        if torch.isnan(loss):
+            print("loss is NAN!!!. Skipping...")
+            print(f"  {loss_gd=}, {loss_bd=}, {loss_fo=}")
+            return None
 
         # TODO: simplify one-hot step
         dice_score = self.dice_metric(y_pred, y)
@@ -173,7 +187,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("val/dice_with_bg", dice_score_with_bg)
         self.log("val/total_loss", loss)
         self.log("val/dice_loss", loss_gd)
-        # self.log("val/ce_loss", loss_ce)
+        self.log("val/focal_loss", loss_fo)
         self.log("val/boundary_loss", loss_bd)
 
         if batch_idx == 0:
