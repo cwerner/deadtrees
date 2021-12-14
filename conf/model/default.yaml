@@ -3,7 +3,7 @@ _target_: deadtrees.network.segmodel.SemSegment
 
 network_conf:
   architecture: efficientunet++ #unet
-  encoder_name: efficientnet-b3 #resnet34
+  encoder_name: efficientnet-b5 #resnet34
   decoder_channels: [256, 128, 64, 32, 16]
   encoder_depth: 5
   encoder_weights: "imagenet"
