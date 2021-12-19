@@ -21,6 +21,8 @@ from skimage.io import imsave
 from torch import einsum, Tensor
 from tqdm import tqdm
 
+EPS = 1e-10
+
 colors = [
     "c",
     "r",
@@ -482,15 +484,27 @@ class GeneralizedDice:
         pc = probs[:, self.idc, ...].type(torch.float32)
         tc = target[:, self.idc, ...].type(torch.float32)
 
-        w: Tensor = 1 / ((einsum("bkwh->bk", tc).type(torch.float32) + 1e-10) ** 2)
+        # modification: move EPS outside to reduce risk of zero-division
+        # orig: w: Tensor = 1 / ((einsum("bkwh->bk", tc).type(torch.float32) + EPS) ** 2)
+        w: Tensor = 1 / ((einsum("bkwh->bk", tc).type(torch.float32) ** 2) + EPS)
         intersection: Tensor = w * einsum("bkwh,bkwh->bk", pc, tc)
         union: Tensor = w * (einsum("bkwh->bk", pc) + einsum("bkwh->bk", tc))
 
-        divided: Tensor = 1 - 2 * (einsum("bk->b", intersection) + 1e-10) / (
-            einsum("bk->b", union) + 1e-10
+        divided: Tensor = 1 - 2 * (einsum("bk->b", intersection) + EPS) / (
+            einsum("bk->b", union) + EPS
         )
 
         loss = divided.mean()
+
+        # def check_inf(x, label='X'):
+        #     if torch.isinf(x).any():
+        #         print("\n\n")
+        #         print(f"{label} :: Inf! {x.dtype} {x=}")
+        #         exit()
+        #     if torch.isnan(x).any():
+        #         print("\n\n")
+        #         print(f"{label} :: NaN! {x.dtype} {x=}")
+        #         exit()
 
         return loss
 
@@ -510,8 +524,8 @@ class DiceLoss:
         intersection: Tensor = einsum("bcwh,bcwh->bc", pc, tc)
         union: Tensor = einsum("bkwh->bk", pc) + einsum("bkwh->bk", tc)
 
-        divided: Tensor = torch.ones_like(intersection) - (2 * intersection + 1e-10) / (
-            union + 1e-10
+        divided: Tensor = torch.ones_like(intersection) - (2 * intersection + EPS) / (
+            union + EPS
         )
 
         loss = divided.mean()
@@ -594,11 +608,11 @@ class FocalLoss:
         assert simplex(probs) and simplex(target)
 
         masked_probs: Tensor = probs[:, self.idc, ...]
-        log_p: Tensor = (masked_probs + 1e-10).log()
+        log_p: Tensor = (masked_probs + EPS).log()
         mask: Tensor = cast(Tensor, target[:, self.idc, ...].type(torch.float32))
 
         w: Tensor = (1 - masked_probs) ** self.gamma
         loss = -einsum("bkwh,bkwh,bkwh->", w, mask, log_p)
-        loss /= mask.sum() + 1e-10
+        loss /= mask.sum() + EPS
 
         return loss
