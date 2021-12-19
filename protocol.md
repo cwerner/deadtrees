@@ -7,7 +7,7 @@ The main segmentation model is an EfficientUnet++ with a EfficientNet-b5 encoder
 ## Losses
 
 The model was trained using a combination of three losses and a loss weighting scheme.  
-![L = (1 - \alpha) * (L_{gd} + L_{fo}) + (\alpha * L_{bd})](https://latex.codecogs.com/svg.latex?L%20%3D%20%28%281%20-%20%5Calpha%29%20*%20%28L_%7Bgd%7D%20&plus;%20L_%7Bfo%7D%29%29%20&plus;%20%28%5Calpha%20*%20L_%7Bbd%7D%29)
+![L_{total} = L_{dice} + \alpha * L_{boundary} + L_{focal}](https://latex.codecogs.com/svg.latex?L_%7Btotal%7D%20=%20L_%7Bdice%7D%20&plus;%20%5Calpha%20*%20L_%7Bboundary%7D%20&plus;%20L_%7Bfocal%7D)
 
 and ɑ (ramped on over the first 100 epochs) is defined as:  
 ![\alpha = min(0.01*epoch, 0.99)](https://latex.codecogs.com/svg.latex?%5Calpha%20%3D%20min%280.01*epoch%2C%200.99%29)
