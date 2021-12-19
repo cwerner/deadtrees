@@ -7,3 +7,4 @@ network_conf:
   decoder_channels: [256, 128, 64, 32, 16]
   encoder_depth: 5
   encoder_weights: "imagenet"
+  losses: ["GDICE", "FOCAL", "BOUNDARY-RAMPED"]   # GDICE, FOCAL, BOUNDARY, BOUNDARY-RAMPED

@@ -51,21 +51,49 @@ class SemSegment(pl.LightningModule):  # type: ignore
         # TODO: cleanup?
         clean_network_conf = network_conf.copy()
         del clean_network_conf.architecture
+        del clean_network_conf.losses
+
         self.model = Model(**clean_network_conf)
         # self.model.apply(initialize_weights)
 
         self.save_hyperparameters()  # type: ignore
 
-        self.classes = range(self.hparams["network_conf"]["classes"])
+        self.classes = list(range(self.hparams["network_conf"]["classes"]))
+        self.classes_wout_bg = [c for c in self.classes if c != 0]
+
         self.in_channels = self.hparams["network_conf"]["in_channels"]
 
-        # new losses
-        self.alpha = 0.01  # nake this a hyperparameter and/ or scale with epoch
-        classes_considered = list(range(1, len(self.classes)))
-        self.generalized_dice_loss = GeneralizedDice(idc=classes_considered)
-        self.boundary_loss = BoundaryLoss(idc=classes_considered)
-        self.focal_loss = FocalLoss(idc=self.classes, gamma=2)
-        # self.ce_loss = CrossEntropy(idc=classes_considered)
+        # check loss config
+
+        # losses
+        self.generalized_dice_loss = None
+        self.focal_loss = None
+        self.boundary_loss = None
+
+        # parse loss config
+        self.initial_alpha = 0.01  # make this a hyperparameter and/ or scale with epoch
+        self.boundary_loss_ramped = False
+        for loss_component in network_conf.losses:
+            if loss_component == "GDICE":
+                # This the only required loss term
+                self.generalized_dice_loss = GeneralizedDice(idc=self.classes_wout_bg)
+            elif loss_component == "FOCAL":
+                self.focal_loss = FocalLoss(idc=self.classes, gamma=2)
+            elif loss_component == "BOUNDARY":
+                self.boundary_loss = BoundaryLoss(idc=self.classes_wout_bg)
+            elif loss_component == "BOUNDARY-RAMPED":
+                self.boundary_loss = BoundaryLoss(idc=self.classes_wout_bg)
+                self.boundary_loss_ramped = True
+            else:
+                raise NotImplementedError(
+                    f"The loss component <{loss_component}> is not recognized"
+                )
+
+        print(f"Losses: {network_conf.losses}")
+
+        # checks:
+        # we need GDICE!
+        assert self.generalized_dice_loss is not None
 
         self.dice_metric = smp.utils.metrics.Fscore(
             ignore_channels=[0],
@@ -78,6 +106,11 @@ class SemSegment(pl.LightningModule):  # type: ignore
             "val": Counter(),
             "test": Counter(),
         }
+
+    @property
+    def alpha(self):
+        """blending parameter for boundary loss - ramps from 0.01 to 0.99 in 0.01 steps by epoch"""
+        return min((self.current_epoch + 1) * self.initial_alpha, 0.99)
 
     def get_progress_bar_dict(self):
         """Hack to remove v_num from progressbar"""
@@ -114,14 +147,26 @@ class SemSegment(pl.LightningModule):  # type: ignore
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
         y_pred = pred.softmax(dim=1)
 
-        loss_gd = self.generalized_dice_loss(y_pred, y)
-        loss_bd = self.boundary_loss(y_pred, distmap)
-        loss_fo = self.focal_loss(y_pred, y)
+        loss, loss_gd, loss_bd, loss_fo = 0, None, None, None
 
-        # frac2 = min(self.alpha * (self.current_epoch + 1), 0.90)
-        # frac1 = 1 - frac2
-        # loss = frac1 * loss_gd + frac2 * loss_bd + loss_fo
-        loss = loss_gd * 0.1 + loss_bd + loss_fo
+        if self.generalized_dice_loss:
+            loss_gd = self.generalized_dice_loss(y_pred, y)
+            loss += loss_gd
+        if self.boundary_loss:
+            loss_bd = self.boundary_loss(y_pred, distmap)
+            if self.boundary_loss_ramped:
+                loss += self.alpha * loss_bd
+            else:
+                loss += loss_bd
+        if self.focal_loss:
+            loss_fo = self.focal_loss(y_pred, y)
+            loss += loss_fo
+
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(
+                f"Train loss is {loss}! Components: {loss_gd=}, {loss_bd=}, {loss_fo=}"
+            )
+            return None
 
         # TODO: simplify one-hot step
         dice_score = self.dice_metric(y_pred, y)
@@ -131,9 +176,10 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("train/dice_with_bg", dice_score_with_bg)
         self.log("train/total_loss", loss)
         self.log("train/dice_loss", loss_gd)
-        self.log("train/focal_loss", loss_fo)
-        self.log("train/boundary_loss", loss_bd)
-        # self.log("train/bdloss_frac", min(self.alpha * (self.current_epoch + 1), 0.90))
+        if self.focal_loss:
+            self.log("train/focal_loss", loss_fo)
+        if self.boundary_loss:
+            self.log("train/boundary_loss", loss_bd)
 
         # track training batch files
         self.stats["train"].update([x["file"] for x in stats])
@@ -159,24 +205,25 @@ class SemSegment(pl.LightningModule):  # type: ignore
         y = torch.zeros_like(pred).scatter_(1, mask.unsqueeze(1), 1)
         y_pred = pred.softmax(dim=1)
 
-        # print(simplex(y))
-        # print(simplex(y_pred))
-        # print(y.shape)
-        # print(y_pred.shape)
+        loss, loss_gd, loss_bd, loss_fo = 0, None, None, None
 
-        loss_gd = self.generalized_dice_loss(y_pred, y)
-        loss_bd = self.boundary_loss(y_pred, distmap)
-        loss_fo = self.focal_loss(y_pred, y)
+        if self.generalized_dice_loss:
+            loss_gd = self.generalized_dice_loss(y_pred, y)
+            loss += loss_gd
+        if self.boundary_loss:
+            loss_bd = self.boundary_loss(y_pred, distmap)
+            if self.boundary_loss_ramped:
+                loss += self.alpha * loss_bd
+            else:
+                loss += loss_bd
+        if self.focal_loss:
+            loss_fo = self.focal_loss(y_pred, y)
+            loss += loss_fo
 
-        # frac2 = min(self.alpha * (self.current_epoch + 1), 0.90)
-        # frac1 = 1 - frac2
-
-        # loss = frac1 * loss_gd + frac2 * loss_bd + loss_fo
-        loss = loss_gd * 0.1 + loss_bd + loss_fo
-
-        if torch.isnan(loss):
-            print("loss is NAN!!!. Skipping...")
-            print(f"  {loss_gd=}, {loss_bd=}, {loss_fo=}")
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(
+                f"Train loss is {loss}! Components: {loss_gd=}, {loss_bd=}, {loss_fo=}"
+            )
             return None
 
         # TODO: simplify one-hot step
@@ -187,8 +234,10 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log("val/dice_with_bg", dice_score_with_bg)
         self.log("val/total_loss", loss)
         self.log("val/dice_loss", loss_gd)
-        self.log("val/focal_loss", loss_fo)
-        self.log("val/boundary_loss", loss_bd)
+        if self.focal_loss:
+            self.log("val/focal_loss", loss_fo)
+        if self.boundary_loss:
+            self.log("val/boundary_loss", loss_bd)
 
         if batch_idx == 0:
             sample_chart = show(
