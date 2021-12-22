@@ -14,7 +14,7 @@ trainer:
 
   # extra tricks
   gradient_clip_val: 0.5
-  stochastic_weight_avg: True
+  stochastic_weight_avg: False
 
 defaults:
     - callbacks: default_callbacks

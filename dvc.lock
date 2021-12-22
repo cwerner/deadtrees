@@ -116,20 +116,20 @@ stages:
       -o data/predicted_mosaic_2017.tif  data/predicted.2017/ortho_ms_2017_EPSG3044_*
     deps:
     - path: checkpoints/bestmodel.ckpt
-      md5: 17b3a3bf8df076b4a5915cdf78748cf6
-      size: 378715436
+      md5: e543654648455b36411f4611eae36f22
+      size: 378716076
     - path: data/processed.images.2017
       md5: 66de96d201af5a47a09997691b992370.dir
       size: 109902740888
       nfiles: 30489
     outs:
     - path: data/predicted.2017
-      md5: 32926c1f010c7fee1cb8021d7d2c5710.dir
-      size: 608803244
+      md5: 6a02ab7abf0eab217247b67ae69ae6f2.dir
+      size: 607592250
       nfiles: 20827
     - path: data/predicted_mosaic_2017.tif
-      md5: 6c1e459137cba3aa066ea7a45f3d9d33
-      size: 847608515
+      md5: 79599364e67873cd97d420d8e5394988
+      size: 845660272
   inference@2019:
     cmd: mkdir -p data/predicted.2019; stdbuf -i0 -o0 -e0 python scripts/inference.py
       --all --nopreview -o data/predicted.2019 data/processed.images.2019; gdal_merge.py  -co
@@ -137,20 +137,20 @@ stages:
       -o data/predicted_mosaic_2019.tif  data/predicted.2019/ortho_ms_2019_EPSG3044_*
     deps:
     - path: checkpoints/bestmodel.ckpt
-      md5: 17b3a3bf8df076b4a5915cdf78748cf6
-      size: 378715436
+      md5: e543654648455b36411f4611eae36f22
+      size: 378716076
     - path: data/processed.images.2019
       md5: 35c31b781cb0bdb19650329132d83d05.dir
       size: 144926802415
       nfiles: 30489
     outs:
     - path: data/predicted.2019
-      md5: 9ab56eef068a78705ead2c5a9abd4053.dir
-      size: 486999756
+      md5: 50287edaea44da4ebd415cededfc3323.dir
+      size: 486417595
       nfiles: 16227
     - path: data/predicted_mosaic_2019.tif
-      md5: 9dd33ab820578ef06d4437c9273830bf
-      size: 814650908
+      md5: 784f2a8d8d0ea1dfcfcfa5f0031cebf4
+      size: 813668388
   computestats:
     cmd: 'python scripts/computestats.py --frac 0.1 data/processed.images.2017   data/processed.images.2018   data/processed.images.2019  data/processed.images.2020 '
     deps:
@@ -177,25 +177,25 @@ stages:
     cmd: 'python scripts/computestats_inference.py data/predicted.2017   data/predicted.2018   data/predicted.2019  data/predicted.2020  '
     deps:
     - path: data/predicted.2017
-      md5: 32926c1f010c7fee1cb8021d7d2c5710.dir
-      size: 608803244
+      md5: 6a02ab7abf0eab217247b67ae69ae6f2.dir
+      size: 607592250
       nfiles: 20827
     - path: data/predicted.2018
-      md5: ccbee518fa49e0cd5e01280b14e15fd7.dir
-      size: 556403586
+      md5: 438b72649cb14c89e2d44217df305ee2.dir
+      size: 557696998
       nfiles: 19182
     - path: data/predicted.2019
-      md5: 9ab56eef068a78705ead2c5a9abd4053.dir
-      size: 486999756
+      md5: 50287edaea44da4ebd415cededfc3323.dir
+      size: 486417595
       nfiles: 16227
     - path: data/predicted.2020
-      md5: 42e4d13a57a3333b99499aad4be4ac7a.dir
-      size: 502580004
+      md5: 18a3b6acf6f32524f21936222d711f29.dir
+      size: 497806592
       nfiles: 16125
     outs:
     - path: data/predicted.stats.csv
-      md5: 5c75102a81b08840b7740ce38c0299ca
-      size: 1826227
+      md5: ad7e5fa98bb9737ea28e90928f6d49e5
+      size: 1819683
   createtiles@2018:
     cmd: mkdir -p data/processed.images.2018; gdal_retile.py  -csv locations.csv  -v
       -ps 2048 2048 -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "ALPHA=NO"
@@ -235,20 +235,20 @@ stages:
       -o data/predicted_mosaic_2018.tif  data/predicted.2018/ortho_ms_2018_EPSG3044_*
     deps:
     - path: checkpoints/bestmodel.ckpt
-      md5: 17b3a3bf8df076b4a5915cdf78748cf6
-      size: 378715436
+      md5: e543654648455b36411f4611eae36f22
+      size: 378716076
     - path: data/processed.images.2018
       md5: cfa0adee6401f838f162a0510085becf.dir
       size: 144861203951
       nfiles: 30489
     outs:
     - path: data/predicted.2018
-      md5: ccbee518fa49e0cd5e01280b14e15fd7.dir
-      size: 556403586
+      md5: 438b72649cb14c89e2d44217df305ee2.dir
+      size: 557696998
       nfiles: 19182
     - path: data/predicted_mosaic_2018.tif
-      md5: 0b5496a4b608b2c550552bfc89afbea3
-      size: 837118270
+      md5: d01f8ece18c0d81e1b4fd06e7f08f22e
+      size: 838475732
   inference@2020:
     cmd: mkdir -p data/predicted.2020; stdbuf -i0 -o0 -e0 python scripts/inference.py
       --all --nopreview -o data/predicted.2020 data/processed.images.2020; gdal_merge.py  -co
@@ -256,17 +256,17 @@ stages:
       -o data/predicted_mosaic_2020.tif  data/predicted.2020/ortho_ms_2020_EPSG3044_*
     deps:
     - path: checkpoints/bestmodel.ckpt
-      md5: 17b3a3bf8df076b4a5915cdf78748cf6
-      size: 378715436
+      md5: e543654648455b36411f4611eae36f22
+      size: 378716076
     - path: data/processed.images.2020
       md5: 76d4daf0d9e69904a9370a0c74006d17.dir
       size: 163333629599
       nfiles: 30489
     outs:
     - path: data/predicted.2020
-      md5: 42e4d13a57a3333b99499aad4be4ac7a.dir
-      size: 502580004
+      md5: 18a3b6acf6f32524f21936222d711f29.dir
+      size: 497806592
       nfiles: 16125
     - path: data/predicted_mosaic_2020.tif
-      md5: 4d299bbd32db60812ebca8a64177d704
-      size: 828568238
+      md5: 9997d2e303d794311b55c66f6d625406
+      size: 822729460
