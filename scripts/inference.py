@@ -51,7 +51,7 @@ def main():
 
     args = parser.parse_args()
 
-    bs = 32
+    bs = 64
 
     INFILE = args.infile
 
