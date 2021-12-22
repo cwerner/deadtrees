@@ -2,7 +2,7 @@
 
 import logging
 from collections import Counter
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 
 import segmentation_models_pytorch as smp
 
@@ -12,13 +12,8 @@ import torch
 from deadtrees.loss.losses import (
     BoundaryLoss,
     class2one_hot,
-    CrossEntropy,
     FocalLoss,
     GeneralizedDice,
-    one_hot2dist,
-    probs2class,
-    probs2one_hot,
-    simplex,
 )
 from deadtrees.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
 from deadtrees.visualization.helper import show
@@ -26,6 +21,29 @@ from omegaconf import DictConfig
 from torch import Tensor
 
 logger = logging.getLogger(__name__)
+
+
+def concat_extra(
+    img: Tensor, mask: Tensor, distmap: Tensor, stats, *, extra
+) -> Tuple[Tensor]:
+    extra_imgs, extra_masks, extra_distmaps, extra_stats = list(zip(*extra))
+    img = torch.cat((img, *extra_imgs), dim=0)
+    mask = torch.cat((mask, *extra_masks), dim=0)
+    distmap = torch.cat((distmap, *extra_distmaps), dim=0)
+    stats.extend(sum(extra_stats, []))
+    return img, mask, distmap, stats
+
+
+def create_combined_batch(
+    batch: Dict[str, Any]
+) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+    img, mask, distmap, stats = batch["main"]
+
+    # grab extra datasets and concat tensors
+    extra = [v for k, v in batch.items() if k.startswith("extra")]
+    if extra:
+        img, mask, distmap, stats = concat_extra(img, mask, distmap, stats, extra=extra)
+    return img, mask, distmap, stats
 
 
 class SemSegment(pl.LightningModule):  # type: ignore
@@ -68,8 +86,6 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         self.in_channels = self.hparams["network_conf"]["in_channels"]
 
-        # check loss config
-
         # losses
         self.generalized_dice_loss = None
         self.focal_loss = None
@@ -96,8 +112,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         print(f"Losses: {network_conf.losses}")
 
-        # checks:
-        # we need GDICE!
+        # checks: we require GDICE!
         assert self.generalized_dice_loss is not None
 
         self.dice_metric = smp.utils.metrics.Fscore(
@@ -155,23 +170,9 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.log(f"{stage}/dice", dice_score)
         self.log(f"{stage}/dice_with_bg", dice_score_with_bg)
 
-    def _concat_extra(self, img, mask, distmap, stats, *, extra):
-        extra_imgs, extra_masks, extra_distmaps, extra_stats = list(zip(*extra))
-        img = torch.cat((img, *extra_imgs), dim=0)
-        mask = torch.cat((mask, *extra_masks), dim=0)
-        distmap = torch.cat((distmap, *extra_distmaps), dim=0)
-        stats.extend(sum(extra_stats, []))
-        return (img, mask, distmap, stats)
-
     def training_step(self, batch, batch_idx):
-        img, mask, distmap, stats = batch["main"]
 
-        # grab extra datasets and concat tensors
-        extra = [v for k, v in batch.items() if k.startswith("extra")]
-        if extra:
-            img, mask, distmap, stats = self._concat_extra(
-                img, mask, distmap, stats, extra=extra
-            )
+        img, mask, distmap, stats = create_combined_batch(batch)
 
         logits = self.model(img)
         y = class2one_hot(mask, K=len(self.classes))
@@ -191,14 +192,8 @@ class SemSegment(pl.LightningModule):  # type: ignore
         return loss
 
     def validation_step(self, batch, batch_idx):
-        img, mask, distmap, stats = batch["main"]
 
-        # grab extra datasets and concat tensors
-        extra = [v for k, v in batch.items() if k.startswith("extra")]
-        if extra:
-            img, mask, distmap, stats = self._concat_extra(
-                img, mask, distmap, stats, extra=extra
-            )
+        img, mask, distmap, stats = create_combined_batch(batch)
 
         logits = self.model(img)
         y = class2one_hot(mask, K=len(self.classes))
@@ -241,7 +236,6 @@ class SemSegment(pl.LightningModule):  # type: ignore
         img, mask, _, stats = batch
 
         logits = self.model(img)
-
         y = class2one_hot(mask, K=len(self.classes))
         y_hat = logits.softmax(dim=1)
 
