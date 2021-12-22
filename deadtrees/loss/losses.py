@@ -10,7 +10,6 @@ from pathlib import Path
 from random import randint, random, uniform
 from typing import Any, Callable, cast, Iterable, List, Set, Tuple, TypeVar, Union
 
-# from medpy.metric.binary import hd
 from scipy.ndimage import distance_transform_edt as eucl_distance
 
 import numpy as np
@@ -23,34 +22,6 @@ from tqdm import tqdm
 
 EPS = 1e-10
 
-colors = [
-    "c",
-    "r",
-    "g",
-    "b",
-    "m",
-    "y",
-    "k",
-    "chartreuse",
-    "coral",
-    "gold",
-    "lavender",
-    "silver",
-    "tan",
-    "teal",
-    "wheat",
-    "orchid",
-    "orange",
-    "tomato",
-]
-
-# functions redefinitions
-tqdm_ = partial(
-    tqdm,
-    dynamic_ncols=True,
-    leave=False,
-    bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [" "{rate_fmt}{postfix}]",
-)
 
 A = TypeVar("A")
 B = TypeVar("B")
@@ -198,51 +169,6 @@ def union_sum(a: Tensor, b: Tensor) -> Tensor:
     return einsum("bk...->bk", union(a, b).type(torch.float32))
 
 
-# def hausdorff(preds: Tensor, target: Tensor, spacing: Tensor = None) -> Tensor:
-#     assert preds.shape == target.shape
-#     assert one_hot(preds)
-#     assert one_hot(target)
-
-#     B, K, *img_shape = preds.shape
-
-#     if spacing is None:
-#         D: int = len(img_shape)
-#         spacing = torch.ones((B, D), dtype=torch.float32)
-
-#     assert spacing.shape == (B, len(img_shape))
-
-#     res = torch.zeros((B, K), dtype=torch.float32, device=preds.device)
-#     n_pred = preds.cpu().numpy()
-#     n_target = target.cpu().numpy()
-#     n_spacing = spacing.cpu().numpy()
-
-#     for b in range(B):
-#         # print(spacing[b])
-#         # if K == 2:
-#         #     res[b, :] = hd(n_pred[b, 1], n_target[b, 1], voxelspacing=n_spacing[b])
-#         #     continue
-
-#         for k in range(K):
-#             if not n_target[b, k].any():  # No object to predict
-#                 if n_pred[b, k].any():  # Predicted something nonetheless
-#                     res[b, k] = sum((dd * d)**2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
-#                     continue
-#                 else:
-#                     res[b, k] = 0
-#                     continue
-#             if not n_pred[b, k].any():
-#                 if n_target[b, k].any():
-#                     res[b, k] = sum((dd * d)**2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
-#                     continue
-#                 else:
-#                     res[b, k] = 0
-#                     continue
-
-#             res[b, k] = hd(n_pred[b, k], n_target[b, k], voxelspacing=n_spacing[b])
-
-#     return res
-
-
 # switch between representations
 def probs2class(probs: Tensor) -> Tensor:
     b, _, *img_shape = probs.shape
@@ -333,90 +259,6 @@ def one_hot2hd_dist(
     return res
 
 
-# Misc utils
-def save_images(
-    segs: Tensor, names: Iterable[str], root: str, mode: str, iter: int
-) -> None:
-    for seg, name in zip(segs, names):
-        save_path = Path(root, f"iter{iter:03d}", mode, name).with_suffix(".png")
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if len(seg.shape) == 2:
-            imsave(str(save_path), seg.detach().cpu().numpy().astype(np.uint8))
-        elif len(seg.shape) == 3:
-            np.save(str(save_path), seg.detach().cpu().numpy())
-        else:
-            raise ValueError("How did you get here")
-
-
-def augment(
-    *arrs: Union[np.ndarray, Image.Image],
-    rotate_angle: float = 45,
-    flip: bool = True,
-    mirror: bool = True,
-    rotate: bool = True,
-    scale: bool = False,
-) -> List[Image.Image]:
-    imgs: List[Image.Image] = (
-        map_(Image.fromarray, arrs) if isinstance(arrs[0], np.ndarray) else list(arrs)
-    )
-
-    if flip and random() > 0.5:
-        imgs = map_(ImageOps.flip, imgs)
-    if mirror and random() > 0.5:
-        imgs = map_(ImageOps.mirror, imgs)
-    if rotate and random() > 0.5:
-        angle: float = uniform(-rotate_angle, rotate_angle)
-        imgs = map_(lambda e: e.rotate(angle), imgs)
-    if scale and random() > 0.5:
-        scale_factor: float = uniform(1, 1.2)
-        w, h = imgs[0].size  # Tuple[int, int]
-        nw, nh = int(w * scale_factor), int(h * scale_factor)  # Tuple[int, int]
-
-        # Resize
-        imgs = map_(lambda i: i.resize((nw, nh)), imgs)
-
-        # Now need to crop to original size
-        bw, bh = randint(0, nw - w), randint(0, nh - h)  # Tuple[int, int]
-
-        imgs = map_(lambda i: i.crop((bw, bh, bw + w, bh + h)), imgs)
-        assert all(i.size == (w, h) for i in imgs)
-
-    return imgs
-
-
-def augment_arr(
-    *arrs_a: np.ndarray,
-    rotate_angle: float = 45,
-    flip: bool = True,
-    mirror: bool = True,
-    rotate: bool = True,
-    scale: bool = False,
-    noise: bool = False,
-    noise_loc: float = 0.5,
-    noise_lambda: float = 0.1,
-) -> List[np.ndarray]:
-    arrs = list(arrs_a)  # manoucherie type check
-
-    if flip and random() > 0.5:
-        arrs = map_(np.flip, arrs)
-    if mirror and random() > 0.5:
-        arrs = map_(np.fliplr, arrs)
-    if noise and random() > 0.5:
-        mask: np.ndarray = np.random.laplace(noise_loc, noise_lambda, arrs[0].shape)
-        arrs = map_(partial(add, mask), arrs)
-        arrs = map_(lambda e: (e - e.min()) / (e.max() - e.min()), arrs)
-    # if random() > 0.5:
-    #     orig_shape = arrs[0].shape
-
-    #     angle = random() * 90 - 45
-    #     arrs = map_(lambda e: sp.ndimage.rotate(e, angle, order=1), arrs)
-
-    #     arrs = get_center(orig_shape, *arrs)
-
-    return arrs
-
-
 def get_center(shape: Tuple, *arrs: np.ndarray) -> List[np.ndarray]:
     """ center cropping """
 
@@ -496,16 +338,6 @@ class GeneralizedDice:
 
         loss = divided.mean()
 
-        # def check_inf(x, label='X'):
-        #     if torch.isinf(x).any():
-        #         print("\n\n")
-        #         print(f"{label} :: Inf! {x.dtype} {x=}")
-        #         exit()
-        #     if torch.isnan(x).any():
-        #         print("\n\n")
-        #         print(f"{label} :: NaN! {x.dtype} {x=}")
-        #         exit()
-
         return loss
 
 
@@ -554,47 +386,6 @@ class SurfaceLoss:
 
 
 BoundaryLoss = SurfaceLoss
-
-
-# class HausdorffLoss():
-#     """
-#     Implementation heavily inspired from https://github.com/JunMa11/SegWithDistMap
-#     """
-#     def __init__(self, **kwargs):
-#         # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
-#         self.idc: List[int] = kwargs["idc"]
-#         print(f"Initialized {self.__class__.__name__} with {kwargs}")
-
-#     def __call__(self, probs: Tensor, target: Tensor) -> Tensor:
-#         assert simplex(probs)
-#         assert simplex(target)
-#         assert probs.shape == target.shape
-
-#         B, K, *xyz = probs.shape  # type: ignore
-
-#         pc = cast(Tensor, probs[:, self.idc, ...].type(torch.float32))
-#         tc = cast(Tensor, target[:, self.idc, ...].type(torch.float32))
-#         assert pc.shape == tc.shape == (B, len(self.idc), *xyz)
-
-#         target_dm_npy: np.ndarray = np.stack([one_hot2hd_dist(tc[b].cpu().detach().numpy())
-#                                               for b in range(B)], axis=0)
-#         assert target_dm_npy.shape == tc.shape == pc.shape
-#         tdm: Tensor = torch.tensor(target_dm_npy, device=probs.device, dtype=torch.float32)
-
-#         pred_segmentation: Tensor = probs2one_hot(probs).cpu().detach()
-#         pred_dm_npy: np.nparray = np.stack([one_hot2hd_dist(pred_segmentation[b, self.idc, ...].numpy())
-#                                             for b in range(B)], axis=0)
-#         assert pred_dm_npy.shape == tc.shape == pc.shape
-#         pdm: Tensor = torch.tensor(pred_dm_npy, device=probs.device, dtype=torch.float32)
-
-#         delta = (pc - tc)**2
-#         dtm = tdm**2 + pdm**2
-
-#         multipled = einsum("bkwh,bkwh->bkwh", delta, dtm)
-
-#         loss = multipled.mean()
-
-#         return loss
 
 
 class FocalLoss:
