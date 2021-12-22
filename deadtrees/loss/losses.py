@@ -1,13 +1,9 @@
 # source: https://github.com/LIVIAETS/boundary-loss
 # paper: https://doi.org/10.1016/j.media.2020.101851
 # license: unspecified as of 2021-12-06
+# only selected code from repo
 
-import argparse
 from functools import partial
-from multiprocessing.pool import Pool
-from operator import add
-from pathlib import Path
-from random import randint, random, uniform
 from typing import Any, Callable, cast, Iterable, List, Set, Tuple, TypeVar, Union
 
 from scipy.ndimage import distance_transform_edt as eucl_distance
@@ -15,10 +11,7 @@ from scipy.ndimage import distance_transform_edt as eucl_distance
 import numpy as np
 import torch
 import torch.sparse
-from PIL import Image, ImageOps
-from skimage.io import imsave
 from torch import einsum, Tensor
-from tqdm import tqdm
 
 EPS = 1e-10
 
@@ -26,60 +19,6 @@ EPS = 1e-10
 A = TypeVar("A")
 B = TypeVar("B")
 T = TypeVar("T", Tensor, np.ndarray)
-
-
-def str2bool(v):
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
-
-
-def map_(fn: Callable[[A], B], iter: Iterable[A]) -> List[B]:
-    return list(map(fn, iter))
-
-
-def mmap_(fn: Callable[[A], B], iter: Iterable[A]) -> List[B]:
-    return Pool().map(fn, iter)
-
-
-def starmmap_(fn: Callable[[Tuple[A]], B], iter: Iterable[Tuple[A]]) -> List[B]:
-    return Pool().starmap(fn, iter)
-
-
-def uc_(fn: Callable) -> Callable:
-    return partial(uncurry, fn)
-
-
-def uncurry(fn: Callable, args: List[Any]) -> Any:
-    return fn(*args)
-
-
-def id_(x):
-    return x
-
-
-def flatten_(to_flat: Iterable[Iterable[A]]) -> List[A]:
-    return [e for li in to_flat for e in li]
-
-
-def flatten__(to_flat):
-    if type(to_flat) != list:
-        return [to_flat]
-
-    return [e for li in to_flat for e in flatten__(li)]
-
-
-def depth(e: List) -> int:
-    """
-    Compute the depth of nested lists
-    """
-    if type(e) == list and e:
-        return 1 + depth(e[0])
-
-    return 0
 
 
 # fns
@@ -104,11 +43,12 @@ def eq(a: Tensor, b) -> bool:
     return torch.eq(a, b).all()
 
 
+# DISABLED: This keeps crashing at random - not sure what's causing this? maybe fp16 training?
 def simplex(t: Tensor, axis=1) -> bool:
     return True
-    # _sum = cast(Tensor, t.sum(axis).type(torch.float32))
-    # _ones = torch.ones_like(_sum, dtype=torch.float32)
-    # return torch.allclose(_sum, _ones)
+    _sum = cast(Tensor, t.sum(axis).type(torch.float32))
+    _ones = torch.ones_like(_sum, dtype=torch.float32)
+    return torch.allclose(_sum, _ones)
 
 
 def one_hot(t: Tensor, axis=1) -> bool:
@@ -235,65 +175,6 @@ def one_hot2dist(
         # since this is one-hot encoded, another class will supervise that pixel
 
     return res
-
-
-def one_hot2hd_dist(
-    seg: np.ndarray, resolution: Tuple[float, float, float] = None, dtype=None
-) -> np.ndarray:
-    """
-    Used for https://arxiv.org/pdf/1904.10030.pdf,
-    implementation from https://github.com/JunMa11/SegWithDistMap
-    """
-    # Relasx the assertion to allow computation live on only a
-    # subset of the classes
-    # assert one_hot(torch.tensor(seg), axis=0)
-    K: int = len(seg)
-
-    res = np.zeros_like(seg, dtype=dtype)
-    for k in range(K):
-        posmask = seg[k].astype(np.bool)
-
-        if posmask.any():
-            res[k] = eucl_distance(posmask, sampling=resolution)
-
-    return res
-
-
-def get_center(shape: Tuple, *arrs: np.ndarray) -> List[np.ndarray]:
-    """ center cropping """
-
-    def g_center(arr):
-        if arr.shape == shape:
-            return arr
-
-        offsets: List[int] = [(arrs - s) // 2 for (arrs, s) in zip(arr.shape, shape)]
-
-        if 0 in offsets:
-            return arr[[slice(0, s) for s in shape]]
-
-        res = arr[[slice(d, -d) for d in offsets]][
-            [slice(0, s) for s in shape]
-        ]  # Deal with off-by-one errors
-        assert res.shape == shape, (res.shape, shape, offsets)
-
-        return res
-
-    return [g_center(arr) for arr in arrs]
-
-
-def center_pad(arr: np.ndarray, target_shape: Tuple[int, ...]) -> np.ndarray:
-    assert len(arr.shape) == len(target_shape)
-
-    diff: List[int] = [(nx - x) for (x, nx) in zip(arr.shape, target_shape)]
-    pad_width: List[Tuple[int, int]] = [(w // 2, w - (w // 2)) for w in diff]
-
-    res = np.pad(arr, pad_width)
-    assert res.shape == target_shape, (res.shape, target_shape)
-
-    return res
-
-
-# ----------------------
 
 
 class CrossEntropy:
