@@ -110,7 +110,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
                     f"The loss component <{loss_component}> is not recognized"
                 )
 
-        print(f"Losses: {network_conf.losses}")
+        logger.info(f"Losses: {network_conf.losses}")
 
         # checks: we require GDICE!
         assert self.generalized_dice_loss is not None
@@ -181,7 +181,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         loss = self.calculate_loss(y_hat, y, "train", distmap=distmap)
 
         if torch.isnan(loss) or torch.isinf(loss):
-            print("Train loss is NaN! What is going on?")
+            logger.warn("Train loss is NaN! What is going on?")
             return None
 
         self.log_metrics(y_hat, y, stage="train")
@@ -245,12 +245,12 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.stats["test"].update([x["file"] for x in stats])
 
     def teardown(self, stage=None) -> None:
-        print(f"len: {len(self.stats['train'])}")
+        logger.debug(f"len(stats_train): {len(self.stats['train'])}")
         pd.DataFrame.from_records(
             list(dict(self.stats["train"]).items()), columns=["filename", "count"]
         ).to_csv("train_stats.csv", index=False)
 
-        print(f"len: {len(self.stats['val'])}")
+        logger.debug(f"len(stats_val): {len(self.stats['val'])}")
         pd.DataFrame.from_records(
             list(dict(self.stats["val"]).items()), columns=["filename", "count"]
         ).to_csv("val_stats.csv", index=False)

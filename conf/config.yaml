@@ -5,7 +5,7 @@ train:
 trainer:
   gpus: 1
   min_epochs: 1
-  max_epochs: 200
+  max_epochs: 2
   precision: 16
   #val_check_interval: 200
   #profiler: simple

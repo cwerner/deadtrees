@@ -67,7 +67,7 @@ def main(config: DictConfig) -> Trainer:
     logger: List[LightningLoggerBase] = []
     if "logger" in config:
         for key, lg_conf in config["logger"].items():
-            print(f"{_} ; {lg_conf}")
+            # print(f"{_} ; {lg_conf}")
             if "_target_" in lg_conf:
                 log.info(f"Instantiating logger <{lg_conf._target_}>")
                 logger.append(hydra.utils.instantiate(lg_conf))
@@ -117,13 +117,9 @@ def main(config: DictConfig) -> Trainer:
         logger=logger,
     )
 
-    # Print path to best checkpoint
-    log.info(f"Best checkpoint path:\n{trainer.checkpoint_callback.best_model_path}")
-
-    # Return metric score for Optuna optimization
-    # optimized_metric = config.get("optimized_metric")
-    # if optimized_metric:
-    #     return trainer.callback_metrics[optimized_metric]
+    log.info(
+        f"Best checkpoint path: {log.info(trainer.checkpoint_callback.best_model_path)}"
+    )
 
 
 if __name__ == "__main__":

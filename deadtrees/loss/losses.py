@@ -3,6 +3,7 @@
 # license: unspecified as of 2021-12-06
 # only selected code from repo
 
+import logging
 from functools import partial
 from typing import Any, Callable, cast, Iterable, List, Set, Tuple, TypeVar, Union
 
@@ -12,6 +13,8 @@ import numpy as np
 import torch
 import torch.sparse
 from torch import einsum, Tensor
+
+logger = logging.getLogger(__name__)
 
 EPS = 1e-10
 
@@ -56,9 +59,7 @@ def one_hot(t: Tensor, axis=1) -> bool:
 
 
 # # Metrics and shitz
-def meta_dice(
-    sum_str: str, label: Tensor, pred: Tensor, smooth: float = 1e-8
-) -> Tensor:
+def meta_dice(sum_str: str, label: Tensor, pred: Tensor, smooth: float = EPS) -> Tensor:
     assert label.shape == pred.shape
     assert one_hot(label)
     assert one_hot(pred)
@@ -181,7 +182,7 @@ class CrossEntropy:
     def __init__(self, **kwargs):
         # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
         self.idc: List[int] = kwargs["idc"]
-        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+        logger.debug(f"Initialized {self.__class__.__name__} with {kwargs}")
 
     def __call__(self, probs: Tensor, target: Tensor) -> Tensor:
         assert simplex(probs) and simplex(target)
@@ -199,7 +200,7 @@ class GeneralizedDice:
     def __init__(self, **kwargs):
         # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
         self.idc: List[int] = kwargs["idc"]
-        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+        logger.debug(f"Initialized {self.__class__.__name__} with {kwargs}")
 
     def __call__(self, probs: Tensor, target: Tensor) -> Tensor:
         assert simplex(probs) and simplex(target)
@@ -226,7 +227,7 @@ class DiceLoss:
     def __init__(self, **kwargs):
         # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
         self.idc: List[int] = kwargs["idc"]
-        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+        logger.debug(f"Initialized {self.__class__.__name__} with {kwargs}")
 
     def __call__(self, probs: Tensor, target: Tensor) -> Tensor:
         assert simplex(probs) and simplex(target)
@@ -250,7 +251,7 @@ class SurfaceLoss:
     def __init__(self, **kwargs):
         # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
         self.idc: List[int] = kwargs["idc"]
-        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+        logger.debug(f"Initialized {self.__class__.__name__} with {kwargs}")
 
     def __call__(self, probs: Tensor, dist_maps: Tensor) -> Tensor:
         assert simplex(probs)
@@ -274,7 +275,7 @@ class FocalLoss:
         # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
         self.idc: List[int] = kwargs["idc"]
         self.gamma: float = kwargs["gamma"]
-        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+        logger.debug(f"Initialized {self.__class__.__name__} with {kwargs}")
 
     def __call__(self, probs: Tensor, target: Tensor) -> Tensor:
         assert simplex(probs) and simplex(target)
