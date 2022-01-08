@@ -1,4 +1,4 @@
-program: scripts/train.py
+program: run.py
 method: grid #bayes
 command:
   - ${env}
@@ -6,8 +6,8 @@ command:
   - ${program}
   - ${args_no_hyphens}
 metric:
-  name: val/total_loss
-  goal: minimize
+  name: val/dice
+  goal: maximize
 parameters:
   # train.learning_rate:
   #   distribution: log_uniform
@@ -28,6 +28,6 @@ parameters:
     values:
       - "resnet34"
       #- "resnet50" 
-      #- "efficientnet-b5"
+      - "efficientnet-b5"
       #- "efficientnet-b6"
-      - "efficientnet-b7"
+      #- "efficientnet-b7"
