@@ -15,7 +15,7 @@ from pytorch_lightning import (
 )
 from pytorch_lightning.loggers import LightningLoggerBase
 from src.utils import utils
-from src.utils.env import get_env, load_envs
+from src.utils.env import get_env
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 
