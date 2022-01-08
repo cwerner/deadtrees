@@ -21,24 +21,6 @@ defaults:
     - override hydra/hydra_logging: colorlog
     - override hydra/job_logging: colorlog
 
-##  run_test: true
-
-# trainer:
-#   gpus: 1
-#   min_epochs: 1
-#   max_epochs: 500
-#   precision: 16
-#   #val_check_interval: 200
-#   #profiler: simple
-#   progress_bar_refresh_rate: 10
-#   terminate_on_nan: True
-
-#   # extra tricks
-#   gradient_clip_val: 0.5
-#   stochastic_weight_avg: False
-
-
-
 # path to original working directory
 # hydra hijacks working directory by changing it to the current log directory,
 # so it's useful to have this path as a special variable
