@@ -260,7 +260,9 @@ class SemSegment(pl.LightningModule):  # type: ignore
             self.parameters(),
             lr=self.hparams.train_conf.learning_rate,
         )
-        sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=10)
+        sch = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=self.hparams.train_conf.cosineannealing_tmax
+        )
         return [opt], [sch]
 
 

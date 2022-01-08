@@ -1,11 +1,12 @@
 train:
   learning_rate: 0.0003 #3 #0.00015 #0.0001
+  cosineannealing_tmax: 20  # number of epochs for one cosine annealing cycle (default: 10)
   run_test: true
 
 trainer:
   gpus: 1
   min_epochs: 1
-  max_epochs: 2
+  max_epochs: 500
   precision: 16
   #val_check_interval: 200
   #profiler: simple
