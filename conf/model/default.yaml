@@ -1,5 +1,5 @@
 # @package _group_
-_target_: deadtrees.network.segmodel.SemSegment
+_target_: src.network.segmodel.SemSegment
 
 network_conf:
   architecture: efficientunet++ #unet

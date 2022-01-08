@@ -5,8 +5,8 @@ import webdataset as wds
 
 import numpy as np
 import torch
-from deadtrees.deployment.inference import ONNXInference, PyTorchInference
 from PIL import Image
+from src.deployment.inference import ONNXInference, PyTorchInference
 
 # test_data = "tests/testdata/testdata.tar"  # 13 samples
 test_data = "tests/testdata/train-balanced-short-000000.tar"  # 128 samples

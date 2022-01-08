@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from deadtrees.network.extra import modules as md
+from src.network.extra import modules as md
 from torch.functional import norm
 
 

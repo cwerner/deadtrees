@@ -9,15 +9,10 @@ import segmentation_models_pytorch as smp
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-from deadtrees.loss.losses import (
-    BoundaryLoss,
-    class2one_hot,
-    FocalLoss,
-    GeneralizedDice,
-)
-from deadtrees.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
-from deadtrees.visualization.helper import show
 from omegaconf import DictConfig
+from src.loss.losses import BoundaryLoss, class2one_hot, FocalLoss, GeneralizedDice
+from src.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
+from src.visualization.helper import show
 from torch import Tensor
 
 logger = logging.getLogger(__name__)

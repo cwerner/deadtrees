@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
 
-from deadtrees.data.deadtreedata import DeadtreesDataModule
-from deadtrees.network.segmodel import SemSegment
+from src.data.deadtreedata import DeadtreesDataModule
+from src.network.segmodel import SemSegment
 from torch.utils import data
 
 

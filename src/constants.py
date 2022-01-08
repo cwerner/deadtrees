@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from deadtrees.checkpoint import CHECKPOINT
+from src.checkpoint import CHECKPOINT
 
 # local directories
 PACKAGE_DIR = Path(__file__).parent.absolute()

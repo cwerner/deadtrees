@@ -4,10 +4,10 @@ from typing import Union
 
 import numpy as np
 import torch
-from deadtrees.data.deadtreedata import val_transform
-from deadtrees.network.segmodel import SemSegment
 from matplotlib import cm
 from PIL import Image
+from src.data.deadtreedata import val_transform
+from src.network.segmodel import SemSegment
 
 
 class Inference:

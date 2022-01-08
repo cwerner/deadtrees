@@ -13,9 +13,9 @@ import numpy as np
 import PIL
 import pytorch_lightning as pl
 import torch
-from deadtrees.loss.losses import class2one_hot, one_hot2dist
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.trainer.supporters import CombinedLoader
+from src.loss.losses import class2one_hot, one_hot2dist
 from torch.utils.data import DataLoader
 
 logger = logging.getLogger(__name__)

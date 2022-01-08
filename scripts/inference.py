@@ -5,10 +5,10 @@ from pathlib import Path
 import numpy as np
 import rioxarray
 import torch
-from deadtrees.data.deadtreedata import val_transform
-from deadtrees.deployment.inference import PyTorchInference
-from deadtrees.deployment.tiler import Tiler
 from PIL import Image
+from src.data.deadtreedata import val_transform
+from src.deployment.inference import PyTorchInference
+from src.deployment.tiler import Tiler
 from tqdm import tqdm
 
 

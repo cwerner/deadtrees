@@ -5,9 +5,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from deadtrees.data.deadtreedata import DeadtreeDatasetConfig
 from matplotlib.offsetbox import AnchoredText
 from skimage.io import imread
+from src.data.deadtreedata import DeadtreeDatasetConfig
 
 plt.style.use("ggplot")
 

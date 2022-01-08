@@ -9,11 +9,11 @@ from typing import List
 
 import hydra
 import torch
-from deadtrees.callbacks.checkpoint import checkpoint_callback
-from deadtrees.utils.env import get_env, load_envs
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Callback, LightningDataModule, LightningModule, Trainer
 from pytorch_lightning.loggers import LightningLoggerBase
+from src.callbacks.checkpoint import checkpoint_callback
+from src.utils.env import get_env, load_envs
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 
@@ -33,7 +33,7 @@ def main(config: DictConfig) -> Trainer:
 
     # Imports should be nested inside @hydra.main to optimize tab completion
     # Read more here: https://github.com/facebookresearch/hydra/issues/934
-    from deadtrees.utils import template_utils
+    from src.utils import template_utils
 
     log.info(f"PATH: {Path.cwd()}")
 
