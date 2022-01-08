@@ -41,7 +41,7 @@ setup(
         "pydantic",
         "torch>=1.8.1",
         "torchvision>=0.9.1",
-        "pytorch-lightning>=1.3.7",
+        "pytorch-lightning>=1.5",
         "rich",
         "tqdm",
         "webdataset==0.1.62",
