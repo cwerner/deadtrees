@@ -117,9 +117,7 @@ def main(config: DictConfig) -> Trainer:
         logger=logger,
     )
 
-    log.info(
-        f"Best checkpoint path: {log.info(trainer.checkpoint_callback.best_model_path)}"
-    )
+    log.info(f"Best checkpoint path: {trainer.checkpoint_callback.best_model_path}")
 
 
 if __name__ == "__main__":
