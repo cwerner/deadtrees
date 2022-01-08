@@ -12,10 +12,11 @@ import torch
 from omegaconf import DictConfig
 from src.loss.losses import BoundaryLoss, class2one_hot, FocalLoss, GeneralizedDice
 from src.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
+from src.utils import utils
 from src.visualization.helper import show
 from torch import Tensor
 
-logger = logging.getLogger(__name__)
+log = utils.get_logger(__name__)
 
 
 def concat_extra(
@@ -42,14 +43,10 @@ def create_combined_batch(
 
 
 class SemSegment(pl.LightningModule):  # type: ignore
-    def __init__(
-        self,
-        train_conf: DictConfig,
-        network_conf: DictConfig,
-    ):
+    def __init__(self, network: DictConfig, training: DictConfig):
         super().__init__()
 
-        architecture = network_conf.architecture.lower().strip()
+        architecture = network.architecture.lower().strip()
         if architecture == "unet":
             Model = smp.Unet
         elif architecture in ["unetplusplus", "unet++"]:
@@ -67,19 +64,19 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         # Model does not accept "architecture" as an argument, but we need to store it in hparams for inference
         # TODO: cleanup?
-        clean_network_conf = network_conf.copy()
+        clean_network_conf = network.copy()
         del clean_network_conf.architecture
         del clean_network_conf.losses
 
         self.model = Model(**clean_network_conf)
         # self.model.apply(initialize_weights)
 
-        self.save_hyperparameters()  # type: ignore
-
-        self.classes = list(range(self.hparams["network_conf"]["classes"]))
+        self.save_hyperparameters()
+        log.info(self.hparams)
+        self.classes = list(range(self.hparams["network"]["classes"]))
         self.classes_wout_bg = [c for c in self.classes if c != 0]
 
-        self.in_channels = self.hparams["network_conf"]["in_channels"]
+        self.in_channels = self.hparams["network"]["in_channels"]
 
         # losses
         self.generalized_dice_loss = None
@@ -89,7 +86,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         # parse loss config
         self.initial_alpha = 0.01  # make this a hyperparameter and/ or scale with epoch
         self.boundary_loss_ramped = False
-        for loss_component in network_conf.losses:
+        for loss_component in network.losses:
             if loss_component == "GDICE":
                 # This the only required loss term
                 self.generalized_dice_loss = GeneralizedDice(idc=self.classes_wout_bg)
@@ -105,7 +102,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
                     f"The loss component <{loss_component}> is not recognized"
                 )
 
-        logger.info(f"Losses: {network_conf.losses}")
+        log.info(f"Losses: {network.losses}")
 
         # checks: we require GDICE!
         assert self.generalized_dice_loss is not None
@@ -176,7 +173,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         loss = self.calculate_loss(y_hat, y, "train", distmap=distmap)
 
         if torch.isnan(loss) or torch.isinf(loss):
-            logger.warn("Train loss is NaN! What is going on?")
+            log.warn("Train loss is NaN! What is going on?")
             return None
 
         self.log_metrics(y_hat, y, stage="train")
@@ -240,12 +237,12 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.stats["test"].update([x["file"] for x in stats])
 
     def teardown(self, stage=None) -> None:
-        logger.debug(f"len(stats_train): {len(self.stats['train'])}")
+        log.debug(f"len(stats_train): {len(self.stats['train'])}")
         pd.DataFrame.from_records(
             list(dict(self.stats["train"]).items()), columns=["filename", "count"]
         ).to_csv("train_stats.csv", index=False)
 
-        logger.debug(f"len(stats_val): {len(self.stats['val'])}")
+        log.debug(f"len(stats_val): {len(self.stats['val'])}")
         pd.DataFrame.from_records(
             list(dict(self.stats["val"]).items()), columns=["filename", "count"]
         ).to_csv("val_stats.csv", index=False)
@@ -253,10 +250,10 @@ class SemSegment(pl.LightningModule):  # type: ignore
     def configure_optimizers(self):
         opt = torch.optim.Adam(
             self.parameters(),
-            lr=self.hparams.train_conf.learning_rate,
+            lr=self.hparams.training.learning_rate,
         )
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(
-            opt, T_max=self.hparams.train_conf.cosineannealing_tmax
+            opt, T_max=self.hparams.training.cosineannealing_tmax
         )
         return [opt], [sch]
 
