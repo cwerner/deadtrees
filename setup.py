@@ -4,7 +4,6 @@ from itertools import chain
 from deadtrees.constants import HOME_HTML, MODEL_CHECKPOINT_PATH, PACKAGE_DIR
 from deadtrees.version import __version__
 from setuptools import find_packages, setup
-from src import logger
 
 if not MODEL_CHECKPOINT_PATH.exists():
     # develop will be in argv if we do e.g. `pip install -e .`
