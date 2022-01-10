@@ -1,6 +1,6 @@
 # @package _global_
 datamodule:
-  _target_: src.data.deadtreedata.DeadtreesDataModule
+  _target_: deadtrees.data.deadtreedata.DeadtreesDataModule
   pattern: "train-balanced-000*.tar"
   pattern_extra: ["train-negativesamples-000*.tar", "train-randomsamples-000*.tar"]
   batch_size_extra: [2, 15]

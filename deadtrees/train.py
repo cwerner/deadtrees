@@ -5,6 +5,8 @@ import warnings
 from typing import List, Optional
 
 import hydra
+from deadtrees.utils import utils
+from deadtrees.utils.env import get_env
 from omegaconf import DictConfig
 from pytorch_lightning import (
     Callback,
@@ -14,8 +16,6 @@ from pytorch_lightning import (
     Trainer,
 )
 from pytorch_lightning.loggers import LightningLoggerBase
-from src.utils import utils
-from src.utils.env import get_env
 
 warnings.simplefilter(action="ignore", category=UserWarning)
 

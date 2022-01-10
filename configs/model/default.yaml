@@ -1,4 +1,4 @@
-_target_: src.network.segmodel.SemSegment
+_target_: deadtrees.network.segmodel.SemSegment
 
 network:
     architecture: efficientunet++ #unet

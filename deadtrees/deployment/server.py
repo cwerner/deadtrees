@@ -8,12 +8,12 @@ from starlette.responses import HTMLResponse, Response
 
 import numpy as np
 import torch
+from deadtrees.data.deadtreedata import val_transform
+from deadtrees.deployment.inference import ONNXInference, PyTorchInference
+from deadtrees.deployment.models import PredictionStats, predictionstats_to_str
+from deadtrees.utils.timer import record_execution_time
 from numpy.lib.arraysetops import isin
 from PIL import Image
-from src.data.deadtreedata import val_transform
-from src.deployment.inference import ONNXInference, PyTorchInference
-from src.deployment.models import PredictionStats, predictionstats_to_str
-from src.utils.timer import record_execution_time
 
 MODEL = "bestmodel"
 

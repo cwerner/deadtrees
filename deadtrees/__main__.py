@@ -10,7 +10,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "version":
-        from src.version import __version__
+        from deadtrees.version import __version__
 
         print(__version__)
         sys.exit(0)

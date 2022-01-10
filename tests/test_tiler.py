@@ -8,7 +8,7 @@ from attr import dataclass
 
 import numpy as np
 import rioxarray
-from src.deployment.tiler import (
+from deadtrees.deployment.tiler import (
     divisible_without_remainder,
     inspect_tile,
     make_blocks_vectorized,
