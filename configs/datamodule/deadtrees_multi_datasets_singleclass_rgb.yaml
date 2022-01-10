@@ -15,6 +15,6 @@ datamodule:
     num_workers: 2
 
 model:
-  network_conf:
-    classes: 3
-    in_channels: 4
+  network:
+    classes: 2
+    in_channels: 3

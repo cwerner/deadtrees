@@ -64,9 +64,9 @@ Specify the location of the training dataset on your system by creating the file
 export TRAIN_DATASET_PATH="/path_to_my_repos/deadtrees/data/dataset/train"
 ```
 
-Train model with default configuration (you can adjust the training config on the commandline or by editing the hydra yaml files in `conf`): 
+Train model with default configuration (you can adjust the training config on the commandline or by editing the hydra yaml files in `configs`): 
 ```yaml
-python scripts/train.py
+python run.py
 ```
 
 <br>

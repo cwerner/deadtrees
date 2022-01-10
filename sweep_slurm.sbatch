@@ -16,7 +16,7 @@ which python
 config_yaml='/home/werner-ch/repos/deadtrees/sweep.yaml'
 echo 'config:' $config_yaml
 
-train_file='/home/werner-ch/repos/deadtrees/scripts/train.py'
+train_file='/home/werner-ch/repos/deadtrees/run.py'
 echo 'train_file:' $train_file
 
 project_name='deadtrees'

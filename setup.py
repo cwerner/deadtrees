@@ -1,7 +1,6 @@
 import sys
 from itertools import chain
 
-from deadtrees import logger
 from deadtrees.constants import HOME_HTML, MODEL_CHECKPOINT_PATH, PACKAGE_DIR
 from deadtrees.version import __version__
 from setuptools import find_packages, setup
@@ -41,7 +40,7 @@ setup(
         "pydantic",
         "torch>=1.8.1",
         "torchvision>=0.9.1",
-        "pytorch-lightning>=1.3.7",
+        "pytorch-lightning>=1.5",
         "rich",
         "tqdm",
         "webdataset==0.1.62",

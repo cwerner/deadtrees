@@ -116,20 +116,20 @@ stages:
       -o data/predicted_mosaic_2017.tif  data/predicted.2017/ortho_ms_2017_EPSG3044_*
     deps:
     - path: checkpoints/bestmodel.ckpt
-      md5: e543654648455b36411f4611eae36f22
-      size: 378716076
+      md5: 0830f3f736486d7c9a3d5d59c64ef89d
+      size: 378716396
     - path: data/processed.images.2017
       md5: 66de96d201af5a47a09997691b992370.dir
       size: 109902740888
       nfiles: 30489
     outs:
     - path: data/predicted.2017
-      md5: 6a02ab7abf0eab217247b67ae69ae6f2.dir
-      size: 607592250
+      md5: 2caf0e0722d7d48b1199f728f55b6b41.dir
+      size: 609342072
       nfiles: 20827
     - path: data/predicted_mosaic_2017.tif
-      md5: 79599364e67873cd97d420d8e5394988
-      size: 845660272
+      md5: 82ea7e83829548f3f5dbf9d895ada1c1
+      size: 847763504
   inference@2019:
     cmd: mkdir -p data/predicted.2019; stdbuf -i0 -o0 -e0 python scripts/inference.py
       --all --nopreview -o data/predicted.2019 data/processed.images.2019; gdal_merge.py  -co
