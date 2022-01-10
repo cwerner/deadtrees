@@ -3,7 +3,7 @@ _target_: pytorch_lightning.Trainer
 gpus: 1
 
 min_epochs: 1
-max_epochs: 10
+max_epochs: 500
 
 precision: 16
 
@@ -16,4 +16,4 @@ terminate_on_nan: True
 
  # extra tricks
 gradient_clip_val: 0.5
-stochastic_weight_avg: False
+stochastic_weight_avg: True
