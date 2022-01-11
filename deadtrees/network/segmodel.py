@@ -77,7 +77,6 @@ class SemSegment(pl.LightningModule):  # type: ignore
         # self.model.apply(initialize_weights)
 
         self.save_hyperparameters()
-        log.info(self.hparams)
         self.classes = list(range(self.hparams["network"]["classes"]))
         self.classes_wout_bg = [c for c in self.classes if c != 0]
 
