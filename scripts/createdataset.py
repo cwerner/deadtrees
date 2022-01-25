@@ -23,12 +23,26 @@ random.seed(42)
 SHARDSIZE = 128
 OVERSAMPLE_FACTOR = 2  # factor of random samples to dt + ndt samples
 
+"""Summary:
+
+This script builds up the final datasets for model training, validation and testing
+
+The final datasets (combo) consists of three parts:
+(1) tiles with classified deadtrees (frac > 0)
+(2) tiles with non-deadtrees (aka healthy forest tiles, frac = 0)
+(3) random other tiles (landuses: urban, arable, water etc., frac unknown, likely 0)
+
+All shards are balanced to contain an equal amount of classified deadtree occurences to
+allow a fair use of shards for traingin/ validation/ testing (composition of images should
+be fair no matter the use)
+
+"""
+
 
 def split_df(
     df: pd.DataFrame,
     size: int,
     refcol: str = "frac",
-    reduce: Optional[int] = None,
 ) -> List[pd.DataFrame]:
     """
     Split dataset into train, val, test fractions while preserving
