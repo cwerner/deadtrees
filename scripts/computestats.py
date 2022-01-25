@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import PIL
 import torchvision.transforms as transforms
-from deadtrees.utils.tiletransforms import make_blocks_vectorized
+from deadtrees.utils.data_handling import make_blocks_vectorized
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
 from tqdm import tqdm

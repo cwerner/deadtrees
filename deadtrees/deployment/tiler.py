@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import rioxarray
-from deadtrees.utils.tiletransforms import (
+from deadtrees.utils.data_handling import (
     make_blocks_vectorized,
     unmake_blocks_vectorized,
 )

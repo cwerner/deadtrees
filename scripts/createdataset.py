@@ -14,7 +14,7 @@ import webdataset as wds
 import numpy as np
 import pandas as pd
 import rioxarray
-from deadtrees.utils.tiletransforms import make_blocks_vectorized
+from deadtrees.utils.data_handling import make_blocks_vectorized, split_df
 from PIL import Image
 from tqdm.contrib.concurrent import process_map
 
@@ -37,36 +37,6 @@ allow a fair use of shards for traingin/ validation/ testing (composition of ima
 be fair no matter the use)
 
 """
-
-
-def split_df(
-    df: pd.DataFrame,
-    size: int,
-    refcol: str = "frac",
-) -> List[pd.DataFrame]:
-    """
-    Split dataset into train, val, test fractions while preserving
-    the original mean ratio of deadtree pixels for all three buckets
-    """
-
-    df = df.sort_values(by=refcol, ascending=False).reset_index(drop=True)
-
-    n_fractions = math.ceil(len(df) / size)
-    fractions = [1 / n_fractions] * n_fractions
-    all_fractions = sum(fractions)
-    status = [0] * n_fractions
-
-    df["class"] = -1
-
-    idx = np.argmin(status)
-
-    for rid, row in df.iterrows():
-        idx = np.argmin(status)
-        status[idx] += all_fractions / fractions[idx]
-        df.loc[rid, "class"] = idx
-
-    gdf = df.groupby("class")
-    return [[f for f in gdf.get_group(x)["tile"]] for x in gdf.groups]
 
 
 def _split_tile(
