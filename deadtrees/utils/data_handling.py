@@ -38,13 +38,21 @@ def split_df(
     df: pd.DataFrame,
     size: int,
     refcol: str = "frac",
+    require_deadtrees: bool = True,
 ) -> List[pd.DataFrame]:
     """
-    Split dataset into train, val, test fractions while preserving
-    the original mean ratio of deadtree pixels for all three buckets
+    Split dataset into sets while (approximately) preserving
+    the original mean ratio of deadtree pixels for all buckets
     """
 
     df = df.sort_values(by=refcol, ascending=False).reset_index(drop=True)
+
+    if require_deadtrees:
+        if not all(df[refcol] > 0):
+            raise ValueError("All source tiles must include classified deadtrees")
+
+    if size not in range(1, len(df) + 1):
+        raise ValueError("Shard size must be between 1 and len(data)")
 
     n_fractions = math.ceil(len(df) / size)
     fractions = [1 / n_fractions] * n_fractions
