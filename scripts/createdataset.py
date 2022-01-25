@@ -14,6 +14,7 @@ import webdataset as wds
 import numpy as np
 import pandas as pd
 import rioxarray
+from deadtrees.utils.tiletransforms import make_blocks_vectorized
 from PIL import Image
 from tqdm.contrib.concurrent import process_map
 
@@ -52,27 +53,6 @@ def split_df(
 
     gdf = df.groupby("class")
     return [[f for f in gdf.get_group(x)["tile"]] for x in gdf.groups]
-
-
-# https://stackoverflow.com/a/39430508/5300574
-def make_blocks_vectorized(x: np.ndarray, d: int) -> np.ndarray:
-    """Discet an array into subtiles"""
-    p, m, n = x.shape
-    return (
-        x.reshape(-1, m // d, d, n // d, d)
-        .transpose(1, 3, 0, 2, 4)
-        .reshape(-1, p, d, d)
-    )
-
-
-def unmake_blocks_vectorized(x, d, m, n):
-    """Merge subtiles back into array"""
-    return (
-        np.concatenate(x)
-        .reshape(m // d, n // d, d, d)
-        .transpose(0, 2, 1, 3)
-        .reshape(m, n)
-    )
 
 
 def _split_tile(
@@ -245,6 +225,14 @@ def main():
         help="use this location as tmp dir",
     )
 
+    parser.add_argument(
+        "--stats",
+        dest="stats_file",
+        type=Path,
+        default=Path("stats.csv"),
+        help="use this file to record stats",
+    )
+
     args = parser.parse_args()
 
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -287,7 +275,7 @@ def main():
         **cfg,
     )
 
-    with open(args.outdir / "stats.csv", "w") as fout:
+    with open(args.outdir / args.stats_file, "w") as fout:
         fout.write("tile,frac,status\n")
         for i, (fname, frac, status) in enumerate(subtile_stats):
             line = f"{fname},{frac},{status}\n"
@@ -304,7 +292,7 @@ def main():
                 tf.extractall(tmpdir)
 
         print("Write balanced shards from deadtree samples")
-        df = pd.read_csv(args.outdir / "stats.csv")
+        df = pd.read_csv(args.outdir / args.stats_file)
         df = df[df.status > 0]
         n_valid = len(df)
 
@@ -409,7 +397,8 @@ def main():
         **cfg,
     )
 
-    with open(args.outdir / "stats_rnd.csv", "w") as fout:
+    stats_file_rnd = Path(args.stats_file.stem + "_rnd.csv")
+    with open(args.outdir / stats_file_rnd, "w") as fout:
         fout.write("tile,frac,status\n")
         for i, (fname, frac, status) in enumerate(subtile_stats_rnd):
             line = f"{fname},{frac},{status}\n"
@@ -417,7 +406,7 @@ def main():
 
     # also create combo dataset
     # source A: train-balanced, source B: randomsample
-    # NOTE: combo dataset has double the defdault shardsize (2*128), samples alternate between regular and random sample
+    # NOTE: combo dataset has double the default shardsize (2*128), samples alternate between regular and random sample
     train_balanced_shards = [
         str(x) for x in sorted((args.outdir / "train").glob("train-balanced*"))
     ]

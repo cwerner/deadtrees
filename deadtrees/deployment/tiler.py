@@ -13,6 +13,10 @@ from dataclasses import dataclass
 
 import numpy as np
 import rioxarray
+from deadtrees.utils.tiletransforms import (
+    make_blocks_vectorized,
+    unmake_blocks_vectorized,
+)
 
 
 @dataclass
@@ -164,32 +168,3 @@ class Tiler:
         self._target.loc[:] = self._outdata[
             0 : self._tile_info.size[0], 0 : self._tile_info.size[1]
         ]
-
-
-# https://stackoverflow.com/a/39430508/5300574
-def make_blocks_vectorized(x: np.ndarray, d: int) -> np.ndarray:
-    """Discet an array into subtiles: 3d -> 4d
-    x: array (3d, channel:tile:tile)
-    d: subtile width/ height
-    """
-    p, m, n = x.shape
-    return (
-        x.reshape(-1, m // d, d, n // d, d)
-        .transpose(1, 3, 0, 2, 4)
-        .reshape(-1, p, d, d)
-    )
-
-
-def unmake_blocks_vectorized(x: np.ndarray, d: int, m: int, n: int) -> np.ndarray:
-    """Merge subtiles back into array: 3d -> 2d
-    x: array (3d, batch:subtile:subtile)
-    d: subtile width/ height
-    m: tile height
-    n: tile width
-    """
-    return (
-        np.concatenate(x)
-        .reshape(m // d, n // d, d, d)
-        .transpose(0, 2, 1, 3)
-        .reshape(m, n)
-    )
