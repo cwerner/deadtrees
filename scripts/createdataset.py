@@ -23,7 +23,7 @@ random.seed(42)
 
 Path.ls = lambda x: list(x.iterdir())
 
-SHARDSIZE = 64
+SHARDSIZE = 32
 OVERSAMPLE_FACTOR = 2  # factor of random samples to dt + ndt samples
 
 """Summary:
@@ -299,19 +299,8 @@ def main():
         df = pd.read_csv(args.outdir / args.stats_file)
 
         df = df[df.status > 0]
-        # m=df.status>0
-        # df, df_null = df[m], df[~m]
-
-        # present_tiles = [Path(f.stem).stem for f in Path(tmpdir).glob(f"*rgbn.{suffix}")]
-        # print(len(present_tiles))
-
-        # df_null = df_null[df_null.tile.isin(present_tiles)]
-
-        # print(len(df_null))
-        # exit()
 
         n_valid = len(df)
-
         splits = split_df(df, SHARDSIZE)
 
         # preserve last shard if more than 50% of values are present
@@ -334,7 +323,6 @@ def main():
                 if SHUFFLE:
                     random.shuffle(s)
                 for i in s:
-                    print(i)
                     dst.add(f"{tmpdir}/{i}.mask.{suffix}", f"{i}.mask.{suffix}")
                     dst.add(f"{tmpdir}/{i}.rgbn.{suffix}", f"{i}.rgbn.{suffix}")
                     dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
