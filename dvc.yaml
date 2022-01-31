@@ -42,45 +42,46 @@ stages:
       - data/processed.images.stats.json
   
   createmasks:
-    cmd: >-
-      python scripts/createmasks.py 
-      data/processed.images.2019 
-      data/processed.masks.2019 
-      data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
-      --negativesample data/raw/shapefiles/deadtrees_notdead/deadtrees_notdead.shp
-    deps:
-    - data/processed.images.2019
-    - data/raw/shapefiles/deadtrees_2019
-    - data/raw/shapefiles/deadtrees_notdead
-    outs:
-    - data/processed.masks.2019
-    - data/processed.masks.2019.neg_sample
+    foreach:
+      - 2017
+      - 2019
+    do:
+      cmd: >-
+        python scripts/createmasks.py 
+        data/processed.images.${item} 
+        data/processed.masks.${item} 
+        data/raw/shapefiles/deadtrees_${item}/deadtrees_${item}.shp
+      deps:
+      - data/processed.images.${item}
+      - data/raw/shapefiles/deadtrees_${item}
+      outs:
+      - data/processed.masks.${item}
 
   createdataset:
     foreach:
       - 2017
       - 2019
     do:
-    cmd: >-
-      python scripts/createdataset.py 
-      data/processed.images.${item} 
-      data/processed.masks.${item} 
-      data/dataset 
-      --source_dim ${source_dim}
-      --tile_size ${createdataset.tile_size}
-      --format ${file_type}
-      --stats stats_${item}.csv
-    deps:
-    - data/processed.images.${item}
-    - data/processed.masks.${item} 
-    - data/processed.masks.${item}.neg_sample 
-    params:
-    - source_dim
-    - createdataset.tile_size
-    - file_type
-    outs:
-    - data/dataset/train
-    - data/dataset/stats_${item}.csv 
+      cmd: >-
+        python scripts/createdataset.py 
+        data/processed.images.${item} 
+        data/processed.masks.${item} 
+        data/dataset 
+        --subdir train_${item}
+        --source_dim ${source_dim}
+        --tile_size ${createdataset.tile_size}
+        --format ${file_type}
+        --stats stats_${item}.csv
+      deps:
+      - data/processed.images.${item}
+      - data/processed.masks.${item} 
+      params:
+      - source_dim
+      - createdataset.tile_size
+      - file_type
+      outs:
+      - data/dataset/train_${item}
+      - data/dataset/stats_${item}.csv 
 
   # train: do this manually
 

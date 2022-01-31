@@ -1,10 +1,9 @@
 # createmasks stage
 
 import argparse
-from ast import Num
 from functools import partial
 from pathlib import Path
-from typing import Iterable, List, Optional, TypeVar, Union
+from typing import Iterable, Union
 
 import psutil
 from pygeos.set_operations import union
@@ -15,7 +14,6 @@ import pandas as pd
 import rioxarray
 import xarray as xr
 from shapely.geometry import Polygon
-from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
@@ -158,7 +156,6 @@ def create_masks(
     indir: Path,
     outdir: Path,
     shpfile: Path,
-    shpfile_ns: Optional[Path],
     workers: int,
 ) -> None:
     """
@@ -191,32 +188,6 @@ def create_masks(
         outpath=outdir,
     )
 
-    if shpfile_ns:
-        outpath = outdir.parent / (outdir.name + ".neg_sample")
-        outpath.mkdir(parents=True, exist_ok=True)
-
-        groundtruth_ns = gpd.read_file(shpfile_ns)
-        tiles_df_train_ns, groundtruth_ns_df = split_groundtruth_data_by_tiles(
-            groundtruth_ns, tiles_df
-        )
-
-        # make sure we don't use tiles from original tiles_df_train
-        # print(f'Size tiles_df_train_ns (A) {len(tiles_df_train_ns)}')
-        tiles_df_train_ns = tiles_df_train_ns.loc[
-            ~tiles_df_train_ns.filename.isin(tiles_df_train.filename)
-        ]
-        # print(f'Size tiles_df_train_ns (B) {len(tiles_df_train_ns)}')
-
-        create_tile_mask_geotiffs(
-            tiles_df_train_ns,
-            workers,
-            groundtruth_df=groundtruth_ns_df,
-            crs=crs,
-            inpath=indir,
-            outpath=outdir.parent / (outdir.name + ".neg_sample"),
-            simple=True,
-        )
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -234,14 +205,6 @@ def main():
         help="number of workers for parallel execution [def: %(default)s]",
     )
 
-    parser.add_argument(
-        "--negativesample",
-        dest="shpfile_ns",
-        type=Path,
-        default=None,
-        help="shapefile with non-deadtree samples to create additional training tiles",
-    )
-
     args = parser.parse_args()
 
     Path(args.outdir).mkdir(parents=True, exist_ok=True)
@@ -250,7 +213,6 @@ def main():
         args.indir,
         args.outdir,
         args.shpfile,
-        args.shpfile_ns,
         args.workers,
     )
 

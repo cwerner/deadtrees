@@ -21,7 +21,9 @@ from tqdm.contrib.concurrent import process_map
 
 random.seed(42)
 
-SHARDSIZE = 128
+Path.ls = lambda x: list(x.iterdir())
+
+SHARDSIZE = 64
 OVERSAMPLE_FACTOR = 2  # factor of random samples to dt + ndt samples
 
 """Summary:
@@ -59,9 +61,11 @@ class Extractor:
         """Get data from tile, zeropad if necessary"""
 
         # default: all-zero in case no mask file exists
-        data = np.zeros((n_bands, self.source_dim, self.source_dim), dtype=t.dtype)
 
-        if t is not None:
+        if t is None:
+            data = np.zeros((n_bands, self.source_dim, self.source_dim), dtype=np.uint8)
+        else:
+            data = np.zeros((n_bands, self.source_dim, self.source_dim), dtype=t.dtype)
             if (len(t.x) * len(t.y)) != (self.source_dim * self.source_dim):
                 data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
             else:
@@ -89,13 +93,12 @@ def _split_tile(
         subtile_rgbn = extract(t, n_bands=n_bands)
 
     # process (optional) mask data
-    n_bands = 1  # Bool
     if mask:
         chunks = {"band": n_bands, "x": tile_size, "y": tile_size}
         with rioxarray.open_rasterio(mask, chunks=chunks) as t:
-            subtile_mask = extract(t, n_bands=n_bands)
+            subtile_mask = extract(t, n_bands=1)
     else:
-        subtile_mask = extract(None, n_bands=n_bands)
+        subtile_mask = extract(None, n_bands=1)
 
     samples = []
     if format == "TIFF":
@@ -220,6 +223,13 @@ def main():
     )
 
     parser.add_argument(
+        "--subdir",
+        dest="sub_dir",
+        default="train",
+        help="use this location as sub_dir",
+    )
+
+    parser.add_argument(
         "--stats",
         dest="stats_file",
         type=Path,
@@ -230,7 +240,7 @@ def main():
     args = parser.parse_args()
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    Path(args.outdir / "train").mkdir(parents=True, exist_ok=True)
+    Path(args.outdir / args.sub_dir).mkdir(parents=True, exist_ok=True)
 
     if args.tmp_dir:
         print(f"Using custom tmp dir: {args.tmp_dir}")
@@ -265,7 +275,7 @@ def main():
         train_images,
         masks,
         args.workers,
-        str(args.outdir) + "/train/train-%06d.tar",
+        str(args.outdir / args.sub_dir / "train-%06d.tar"),
         **cfg,
     )
 
@@ -281,73 +291,56 @@ def main():
 
         print("Extract source tars")
         # untar input
-        for tf_name in sorted((args.outdir / "train").glob("train-00*.tar")):
+        for tf_name in sorted((args.outdir / args.sub_dir).glob("train-00*.tar")):
             with tarfile.open(tf_name) as tf:
                 tf.extractall(tmpdir)
 
         print("Write balanced shards from deadtree samples")
         df = pd.read_csv(args.outdir / args.stats_file)
+
         df = df[df.status > 0]
+        # m=df.status>0
+        # df, df_null = df[m], df[~m]
+
+        # present_tiles = [Path(f.stem).stem for f in Path(tmpdir).glob(f"*rgbn.{suffix}")]
+        # print(len(present_tiles))
+
+        # df_null = df_null[df_null.tile.isin(present_tiles)]
+
+        # print(len(df_null))
+        # exit()
+
         n_valid = len(df)
 
         splits = split_df(df, SHARDSIZE)
 
+        # preserve last shard if more than 50% of values are present
+        if SHARDSIZE // 2 < len(splits[-1]) < SHARDSIZE:
+            # fill last shard with duplicates (not ideal...)
+            n_missing = SHARDSIZE - len(splits[-1])
+            # df_extra = splits[-1].sample(n=n_missing, random_state=42)
+            splits[-1].extend(np.random.choice(splits[-1], size=n_missing).tolist())
+
         # drop incomplete shards
         splits = [x for x in splits if len(x) == SHARDSIZE]
+        assert len(splits) > 0, "Something went wrong"
 
         for s_cnt, s in enumerate(splits):
 
             with tarfile.open(
-                args.outdir / "train" / f"train-balanced-{s_cnt:06}.tar", "w"
+                args.outdir / args.sub_dir / f"train-balanced-{s_cnt:06}.tar", "w"
             ) as dst:
 
                 if SHUFFLE:
                     random.shuffle(s)
                 for i in s:
+                    print(i)
                     dst.add(f"{tmpdir}/{i}.mask.{suffix}", f"{i}.mask.{suffix}")
                     dst.add(f"{tmpdir}/{i}.rgbn.{suffix}", f"{i}.rgbn.{suffix}")
                     dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
 
-    # --------------------------------------------------------
-
-    # check if negative samples folder exists
-    mask_dir_ns = args.mask_dir.parent / (args.mask_dir.name + ".neg_sample")
-    if mask_dir_ns.is_dir():
-        masks_ns = sorted(mask_dir_ns.glob("*.tif"))
-        mask_names_ns = {i.name for i in masks_ns}
-
-        train_images_ns = [
-            i for i in images if i.name in image_names.intersection(mask_names_ns)
-        ]
-
-        cfg = dict(
-            source_dim=args.source_dim,
-            tile_size=args.tile_size,
-            format=args.format,
-        )
-        subtile_stats_ns = split_tiles(
-            train_images_ns,
-            masks_ns,
-            args.workers,
-            str(args.outdir) + "/train/train-negativesamples-%06d.tar",
-            **cfg,
-        )
-
-        n_valid_ns = 0
-        with open(args.outdir / "stats_ns.csv", "w") as fout:
-            fout.write("tile,frac,status\n")
-            for i, (fname, frac, status) in enumerate(subtile_stats_ns):
-                # for negative samples we only write the actual subtiles out
-                if float(frac) > 0:
-                    line = f"{fname},{frac},{status}\n"
-                    fout.write(line)
-                    n_valid_ns += 1
-
-        subtile_stats.extend(subtile_stats_ns)
-        n_valid += n_valid_ns
-
     # create sets for random tile dataset
-    # use all subtiles not covered in train or train-negatviesamples
+    # use all subtiles not covered in train
 
     n_subtiles = (args.source_dim // args.tile_size) ** 2
 
@@ -358,7 +351,6 @@ def main():
         )
     all_subtiles = set(all_subtiles)
 
-    # rule of thumb: select 10x the number of dead-tree+negative samples (can be limited later)
     n_samples = n_valid * OVERSAMPLE_FACTOR
     random_subtiles = random.sample(
         tuple(all_subtiles - set([x[0] for x in subtile_stats if int(x[2]) == 1])),
@@ -387,7 +379,7 @@ def main():
         random_images,
         [None] * len(random_images),
         args.workers,
-        str(args.outdir) + "/train/train-randomsamples-%06d.tar",
+        str(args.outdir / args.sub_dir / "train-randomsamples-%06d.tar"),
         **cfg,
     )
 
@@ -402,14 +394,14 @@ def main():
     # source A: train-balanced, source B: randomsample
     # NOTE: combo dataset has double the default shardsize (2*128), samples alternate between regular and random sample
     train_balanced_shards = [
-        str(x) for x in sorted((args.outdir / "train").glob("train-balanced*"))
+        str(x) for x in sorted((args.outdir / args.sub_dir).glob("train-balanced*"))
     ]
     train_balanced_shards_rnd = [
-        str(x) for x in sorted((args.outdir / "train").glob("train-random*"))
+        str(x) for x in sorted((args.outdir / args.sub_dir).glob("train-random*"))
     ]
     train_balanced_shards_rnd = train_balanced_shards_rnd[: len(train_balanced_shards)]
 
-    shardpattern = str(args.outdir) + "/train/train-combo-%06d.tar"
+    shardpattern = str(args.outdir / args.sub_dir / "train-combo-%06d.tar")
 
     with wds.ShardWriter(shardpattern, maxcount=SHARDSIZE * 2) as sink:
         for shardA, shardB in zip(train_balanced_shards, train_balanced_shards_rnd):
@@ -417,6 +409,14 @@ def main():
             for sA, sB in zip(wds.WebDataset(shardA), wds.WebDataset(shardB)):
                 sink.write(sA)
                 sink.write(sB)
+
+    # remove everything but train & combo
+    for filename in (args.outdir / args.sub_dir).glob("train-random*"):
+        filename.unlink()
+    for filename in (args.outdir / args.sub_dir).glob("train-balanced*"):
+        filename.unlink()
+    for filename in (args.outdir / args.sub_dir).glob("train-0*"):
+        filename.unlink()
 
 
 if __name__ == "__main__":
