@@ -6,7 +6,7 @@ import tarfile
 import tempfile
 from functools import partial, reduce
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import psutil
 import webdataset as wds
@@ -14,65 +14,64 @@ import webdataset as wds
 import numpy as np
 import pandas as pd
 import rioxarray
+import xarray as xr
+from deadtrees.utils.data_handling import make_blocks_vectorized, split_df
 from PIL import Image
 from tqdm.contrib.concurrent import process_map
 
 random.seed(42)
 
-SHARDSIZE = 128
+Path.ls = lambda x: list(x.iterdir())
+
+SHARDSIZE = 32
 OVERSAMPLE_FACTOR = 2  # factor of random samples to dt + ndt samples
 
+"""Summary:
 
-def split_df(
-    df: pd.DataFrame,
-    size: int,
-    refcol: str = "frac",
-    reduce: Optional[int] = None,
-) -> List[pd.DataFrame]:
-    """
-    Split dataset into train, val, test fractions while preserving
-    the original mean ratio of deadtree pixels for all three buckets
-    """
+This script builds up the final datasets for model training, validation and testing
 
-    df = df.sort_values(by=refcol, ascending=False).reset_index(drop=True)
+The final datasets (combo) consists of three parts:
+(1) tiles with classified deadtrees (frac > 0)
+(2) tiles with non-deadtrees (aka healthy forest tiles, frac = 0)
+(3) random other tiles (landuses: urban, arable, water etc., frac unknown, likely 0)
 
-    n_fractions = math.ceil(len(df) / size)
-    fractions = [1 / n_fractions] * n_fractions
-    all_fractions = sum(fractions)
-    status = [0] * n_fractions
+All shards are balanced to contain an equal amount of classified deadtree occurences to
+allow a fair use of shards for traingin/ validation/ testing (composition of images should
+be fair no matter the use)
 
-    df["class"] = -1
+Before the final dataset (combo) is created, various (temporary) datasets are created:
+(1) train - raw, do not use
+(2) train-balanced - balance the amounts of deadpixels (also filter to only include tiles with deadtrees)
+(3) train-negsamples - a set of tiles that are guaranteed to contain non-dead trees
+(4) train-randomsamples - a set of random other tiles
 
-    idx = np.argmin(status)
+(X) combo: (2) + (4) [take turns]
 
-    for rid, row in df.iterrows():
-        idx = np.argmin(status)
-        status[idx] += all_fractions / fractions[idx]
-        df.loc[rid, "class"] = idx
-
-    gdf = df.groupby("class")
-    return [[f for f in gdf.get_group(x)["tile"]] for x in gdf.groups]
+"""
 
 
-# https://stackoverflow.com/a/39430508/5300574
-def make_blocks_vectorized(x: np.ndarray, d: int) -> np.ndarray:
-    """Discet an array into subtiles"""
-    p, m, n = x.shape
-    return (
-        x.reshape(-1, m // d, d, n // d, d)
-        .transpose(1, 3, 0, 2, 4)
-        .reshape(-1, p, d, d)
-    )
+class Extractor:
+    """Extract subtiles from rgbn or mask tile"""
 
+    def __init__(self, *, tile_size: int = 256, source_dim: int = 2048):
+        self.tile_size = tile_size
+        self.source_dim = source_dim
 
-def unmake_blocks_vectorized(x, d, m, n):
-    """Merge subtiles back into array"""
-    return (
-        np.concatenate(x)
-        .reshape(m // d, n // d, d, d)
-        .transpose(0, 2, 1, 3)
-        .reshape(m, n)
-    )
+    def __call__(self, t: Optional[xr.DataArray], *, n_bands: int):
+        """Get data from tile, zeropad if necessary"""
+
+        # default: all-zero in case no mask file exists
+
+        if t is None:
+            data = np.zeros((n_bands, self.source_dim, self.source_dim), dtype=np.uint8)
+        else:
+            data = np.zeros((n_bands, self.source_dim, self.source_dim), dtype=t.dtype)
+            if (len(t.x) * len(t.y)) != (self.source_dim * self.source_dim):
+                data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
+            else:
+                data = t.values
+
+        return make_blocks_vectorized(data, self.tile_size)
 
 
 def _split_tile(
@@ -86,42 +85,20 @@ def _split_tile(
 ) -> List[Tuple[str, bytes, bytes]]:
     """Helper func for split_tiles"""
 
+    extract = Extractor(tile_size=tile_size, source_dim=source_dim)
+
     n_bands = 4  # RGBN
+    chunks = {"band": n_bands, "x": tile_size, "y": tile_size}
+    with rioxarray.open_rasterio(image, chunks=chunks) as t:
+        subtile_rgbn = extract(t, n_bands=n_bands)
 
-    if mask is None:
-        """No mask provided (random samples)"""
-
-        with rioxarray.open_rasterio(
-            image, chunks={"band": n_bands, "x": tile_size, "y": tile_size}
-        ) as t:
-            if len(t.x) * len(t.y) != source_dim ** 2:
-                rgbn_data = np.zeros((n_bands, source_dim, source_dim), dtype=t.dtype)
-                rgbn_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
-
-            else:
-                rgbn_data = t.values
-            subtile_rgbn = make_blocks_vectorized(rgbn_data, tile_size)
-            subtile_mask = make_blocks_vectorized(
-                np.zeros_like(rgbn_data[0:1]), tile_size
-            )
+    # process (optional) mask data
+    if mask:
+        chunks = {"band": n_bands, "x": tile_size, "y": tile_size}
+        with rioxarray.open_rasterio(mask, chunks=chunks) as t:
+            subtile_mask = extract(t, n_bands=1)
     else:
-
-        with rioxarray.open_rasterio(
-            image, chunks={"band": n_bands, "x": tile_size, "y": tile_size}
-        ) as t, rioxarray.open_rasterio(
-            mask, chunks={"band": 1, "x": tile_size, "y": tile_size}
-        ) as tm:
-            if len(t.x) * len(t.y) != source_dim ** 2:
-                rgbn_data = np.zeros((n_bands, source_dim, source_dim), dtype=t.dtype)
-                rgbn_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
-
-                mask_data = np.zeros((1, source_dim, source_dim), dtype=tm.dtype)
-                mask_data[:, 0 : 0 + tm.shape[1], 0 : 0 + tm.shape[2]] = tm.values
-            else:
-                rgbn_data = t.values
-                mask_data = tm.values
-            subtile_rgbn = make_blocks_vectorized(rgbn_data, tile_size)
-            subtile_mask = make_blocks_vectorized(mask_data, tile_size)
+        subtile_mask = extract(None, n_bands=1)
 
     samples = []
     if format == "TIFF":
@@ -245,10 +222,25 @@ def main():
         help="use this location as tmp dir",
     )
 
+    parser.add_argument(
+        "--subdir",
+        dest="sub_dir",
+        default="train",
+        help="use this location as sub_dir",
+    )
+
+    parser.add_argument(
+        "--stats",
+        dest="stats_file",
+        type=Path,
+        default=Path("stats.csv"),
+        help="use this file to record stats",
+    )
+
     args = parser.parse_args()
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    Path(args.outdir / "train").mkdir(parents=True, exist_ok=True)
+    Path(args.outdir / args.sub_dir).mkdir(parents=True, exist_ok=True)
 
     if args.tmp_dir:
         print(f"Using custom tmp dir: {args.tmp_dir}")
@@ -283,11 +275,11 @@ def main():
         train_images,
         masks,
         args.workers,
-        str(args.outdir) + "/train/train-%06d.tar",
+        str(args.outdir / args.sub_dir / "train-%06d.tar"),
         **cfg,
     )
 
-    with open(args.outdir / "stats.csv", "w") as fout:
+    with open(args.outdir / args.stats_file, "w") as fout:
         fout.write("tile,frac,status\n")
         for i, (fname, frac, status) in enumerate(subtile_stats):
             line = f"{fname},{frac},{status}\n"
@@ -299,24 +291,33 @@ def main():
 
         print("Extract source tars")
         # untar input
-        for tf_name in sorted((args.outdir / "train").glob("train-00*.tar")):
+        for tf_name in sorted((args.outdir / args.sub_dir).glob("train-00*.tar")):
             with tarfile.open(tf_name) as tf:
                 tf.extractall(tmpdir)
 
         print("Write balanced shards from deadtree samples")
-        df = pd.read_csv(args.outdir / "stats.csv")
-        df = df[df.status > 0]
-        n_valid = len(df)
+        df = pd.read_csv(args.outdir / args.stats_file)
 
+        df = df[df.status > 0]
+
+        n_valid = len(df)
         splits = split_df(df, SHARDSIZE)
+
+        # preserve last shard if more than 50% of values are present
+        if SHARDSIZE // 2 < len(splits[-1]) < SHARDSIZE:
+            # fill last shard with duplicates (not ideal...)
+            n_missing = SHARDSIZE - len(splits[-1])
+            # df_extra = splits[-1].sample(n=n_missing, random_state=42)
+            splits[-1].extend(np.random.choice(splits[-1], size=n_missing).tolist())
 
         # drop incomplete shards
         splits = [x for x in splits if len(x) == SHARDSIZE]
+        assert len(splits) > 0, "Something went wrong"
 
         for s_cnt, s in enumerate(splits):
 
             with tarfile.open(
-                args.outdir / "train" / f"train-balanced-{s_cnt:06}.tar", "w"
+                args.outdir / args.sub_dir / f"train-balanced-{s_cnt:06}.tar", "w"
             ) as dst:
 
                 if SHUFFLE:
@@ -326,46 +327,8 @@ def main():
                     dst.add(f"{tmpdir}/{i}.rgbn.{suffix}", f"{i}.rgbn.{suffix}")
                     dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
 
-    # --------------------------------------------------------
-
-    # check if negative samples folder exists
-    mask_dir_ns = args.mask_dir.parent / (args.mask_dir.name + ".neg_sample")
-    if mask_dir_ns.is_dir():
-        masks_ns = sorted(mask_dir_ns.glob("*.tif"))
-        mask_names_ns = {i.name for i in masks_ns}
-
-        train_images_ns = [
-            i for i in images if i.name in image_names.intersection(mask_names_ns)
-        ]
-
-        cfg = dict(
-            source_dim=args.source_dim,
-            tile_size=args.tile_size,
-            format=args.format,
-        )
-        subtile_stats_ns = split_tiles(
-            train_images_ns,
-            masks_ns,
-            args.workers,
-            str(args.outdir) + "/train/train-negativesamples-%06d.tar",
-            **cfg,
-        )
-
-        n_valid_ns = 0
-        with open(args.outdir / "stats_ns.csv", "w") as fout:
-            fout.write("tile,frac,status\n")
-            for i, (fname, frac, status) in enumerate(subtile_stats_ns):
-                # for negative samples we only write the actual subtiles out
-                if float(frac) > 0:
-                    line = f"{fname},{frac},{status}\n"
-                    fout.write(line)
-                    n_valid_ns += 1
-
-        subtile_stats.extend(subtile_stats_ns)
-        n_valid += n_valid_ns
-
     # create sets for random tile dataset
-    # use all subtiles not covered in train or train-negatviesamples
+    # use all subtiles not covered in train
 
     n_subtiles = (args.source_dim // args.tile_size) ** 2
 
@@ -376,7 +339,6 @@ def main():
         )
     all_subtiles = set(all_subtiles)
 
-    # rule of thumb: select 10x the number of dead-tree+negative samples (can be limited later)
     n_samples = n_valid * OVERSAMPLE_FACTOR
     random_subtiles = random.sample(
         tuple(all_subtiles - set([x[0] for x in subtile_stats if int(x[2]) == 1])),
@@ -405,11 +367,12 @@ def main():
         random_images,
         [None] * len(random_images),
         args.workers,
-        str(args.outdir) + "/train/train-randomsamples-%06d.tar",
+        str(args.outdir / args.sub_dir / "train-randomsamples-%06d.tar"),
         **cfg,
     )
 
-    with open(args.outdir / "stats_rnd.csv", "w") as fout:
+    stats_file_rnd = Path(args.stats_file.stem + "_rnd.csv")
+    with open(args.outdir / stats_file_rnd, "w") as fout:
         fout.write("tile,frac,status\n")
         for i, (fname, frac, status) in enumerate(subtile_stats_rnd):
             line = f"{fname},{frac},{status}\n"
@@ -417,16 +380,16 @@ def main():
 
     # also create combo dataset
     # source A: train-balanced, source B: randomsample
-    # NOTE: combo dataset has double the defdault shardsize (2*128), samples alternate between regular and random sample
+    # NOTE: combo dataset has double the default shardsize (2*128), samples alternate between regular and random sample
     train_balanced_shards = [
-        str(x) for x in sorted((args.outdir / "train").glob("train-balanced*"))
+        str(x) for x in sorted((args.outdir / args.sub_dir).glob("train-balanced*"))
     ]
     train_balanced_shards_rnd = [
-        str(x) for x in sorted((args.outdir / "train").glob("train-random*"))
+        str(x) for x in sorted((args.outdir / args.sub_dir).glob("train-random*"))
     ]
     train_balanced_shards_rnd = train_balanced_shards_rnd[: len(train_balanced_shards)]
 
-    shardpattern = str(args.outdir) + "/train/train-combo-%06d.tar"
+    shardpattern = str(args.outdir / args.sub_dir / "train-combo-%06d.tar")
 
     with wds.ShardWriter(shardpattern, maxcount=SHARDSIZE * 2) as sink:
         for shardA, shardB in zip(train_balanced_shards, train_balanced_shards_rnd):
@@ -434,6 +397,14 @@ def main():
             for sA, sB in zip(wds.WebDataset(shardA), wds.WebDataset(shardB)):
                 sink.write(sA)
                 sink.write(sB)
+
+    # remove everything but train & combo
+    for filename in (args.outdir / args.sub_dir).glob("train-random*"):
+        filename.unlink()
+    for filename in (args.outdir / args.sub_dir).glob("train-balanced*"):
+        filename.unlink()
+    for filename in (args.outdir / args.sub_dir).glob("train-0*"):
+        filename.unlink()
 
 
 if __name__ == "__main__":

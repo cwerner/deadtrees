@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import PIL
 import torchvision.transforms as transforms
+from deadtrees.utils.data_handling import make_blocks_vectorized
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
 from tqdm import tqdm
@@ -20,16 +21,6 @@ transform = transforms.Compose(
         transforms.ToTensor(),
     ]
 )
-
-
-def make_blocks_vectorized(x: np.ndarray, d: int) -> np.ndarray:
-    """Discet an array into subtiles"""
-    p, m, n = x.shape
-    return (
-        x.reshape(-1, m // d, d, n // d, d)
-        .transpose(1, 3, 0, 2, 4)
-        .reshape(-1, p, d, d)
-    )
 
 
 class TifDataset(Dataset):

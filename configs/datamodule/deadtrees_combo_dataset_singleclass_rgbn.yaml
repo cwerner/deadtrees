@@ -1,7 +1,7 @@
 # @package _global_
 datamodule:
   _target_: deadtrees.data.deadtreedata.DeadtreesDataModule
-  pattern: "train-combo-000*.tar"
+  pattern: "train-combo-*.tar"
   train_dataloader_conf:
     batch_size: 32
     num_workers: 2
