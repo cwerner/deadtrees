@@ -83,6 +83,15 @@ stages:
       - data/dataset/train_${item}
       - data/dataset/stats_${item}.csv 
 
+  mergedatasets:
+    cmd: >-
+      python scripts/mergedatasets.py data/dataset/train_2017 data/dataset/train_2019
+    deps:
+    - data/dataset/train_2017
+    - data/dataset/train_2019
+    outs:
+    - data/dataset/train
+
   # train: do this manually
 
   # inference

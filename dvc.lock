@@ -308,9 +308,9 @@ stages:
       md5: a0930762410178472817df1312b9004c
       size: 393915
     - path: data/dataset/train_2017
-      md5: 43025ac73d71fb0ebe63e58b5358d431.dir
-      size: 213657600
-      nfiles: 5
+      md5: cfac7705b8f9154e134ddb55b25257ec.dir
+      size: 213708800
+      nfiles: 10
   createdataset@2019:
     cmd: python scripts/createdataset.py  data/processed.images.2019  data/processed.masks.2019  data/dataset  --subdir
       train_2019 --source_dim 2048 --tile_size 256 --format TIFF --stats stats_2019.csv
@@ -333,9 +333,9 @@ stages:
       md5: 64689003eea15a151ecf77c35382f806
       size: 2539254
     - path: data/dataset/train_2019
-      md5: 168689eca1f72bd1bbfb79a297af3ff3.dir
-      size: 4144957440
-      nfiles: 97
+      md5: 4306d82082d8493a5fc6c06ad3941e1f.dir
+      size: 4167321600
+      nfiles: 195
   createmasks@2019:
     cmd: python scripts/createmasks.py  data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
     deps:
@@ -352,3 +352,19 @@ stages:
       md5: 83ce7ca88e1ed7fbf401d0d185ec261d.dir
       size: 4103103156
       nfiles: 978
+  mergedatasets:
+    cmd: python scripts/mergedatasets.py data/dataset/train_2017 data/dataset/train_2019
+    deps:
+    - path: data/dataset/train_2017
+      md5: cfac7705b8f9154e134ddb55b25257ec.dir
+      size: 213708800
+      nfiles: 10
+    - path: data/dataset/train_2019
+      md5: 4306d82082d8493a5fc6c06ad3941e1f.dir
+      size: 4167321600
+      nfiles: 195
+    outs:
+    - path: data/dataset/train
+      md5: f7383adcd899f831abfd1f008384f5af.dir
+      size: 3056035840
+      nfiles: 143
