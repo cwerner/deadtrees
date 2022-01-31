@@ -308,7 +308,7 @@ stages:
       md5: a0930762410178472817df1312b9004c
       size: 393915
     - path: data/dataset/train_2017
-      md5: 48618a98d0e8034c043d7e366d3ea60c.dir
+      md5: 43025ac73d71fb0ebe63e58b5358d431.dir
       size: 213657600
       nfiles: 5
   createdataset@2019:
@@ -320,7 +320,7 @@ stages:
       size: 144926802415
       nfiles: 30489
     - path: data/processed.masks.2019
-      md5: 86dfe9fff1765527e6ab7bdbd50e873d.dir
+      md5: 83ce7ca88e1ed7fbf401d0d185ec261d.dir
       size: 4103103156
       nfiles: 978
     params:
@@ -330,10 +330,10 @@ stages:
         source_dim: 2048
     outs:
     - path: data/dataset/stats_2019.csv
-      md5: 5d5e6ab2648bdb6b7846d4c8655a72a8
-      size: 2539255
+      md5: 64689003eea15a151ecf77c35382f806
+      size: 2539254
     - path: data/dataset/train_2019
-      md5: 5ed9e5cc1fd3ef4c553a559f2255f2b0.dir
+      md5: 168689eca1f72bd1bbfb79a297af3ff3.dir
       size: 4144957440
       nfiles: 97
   createmasks@2019:
