@@ -271,8 +271,7 @@ stages:
       md5: 5fe6a9127327acd9bf2686053fdd62e2
       size: 826975489
   createmasks@2017:
-    cmd: 'python scripts/createmasks.py  data/processed.images.2017  data/processed.masks.2017  data/raw/shapefiles/deadtrees_2017/deadtrees_2017.shp
-      # --negativesample data/raw/shapefiles/deadtrees_notdead/deadtrees_notdead.shp'
+    cmd: python scripts/createmasks.py  data/processed.images.2017  data/processed.masks.2017  data/raw/shapefiles/deadtrees_2017/deadtrees_2017.shp
     deps:
     - path: data/processed.images.2017
       md5: 66de96d201af5a47a09997691b992370.dir
@@ -337,3 +336,19 @@ stages:
       md5: 5ed9e5cc1fd3ef4c553a559f2255f2b0.dir
       size: 4144957440
       nfiles: 97
+  createmasks@2019:
+    cmd: python scripts/createmasks.py  data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
+    deps:
+    - path: data/processed.images.2019
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
+    - path: data/raw/shapefiles/deadtrees_2019
+      md5: 206432f450611c44ceb32c49e50aa8c9.dir
+      size: 3996517
+      nfiles: 5
+    outs:
+    - path: data/processed.masks.2019
+      md5: 83ce7ca88e1ed7fbf401d0d185ec261d.dir
+      size: 4103103156
+      nfiles: 978
