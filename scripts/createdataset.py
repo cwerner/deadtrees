@@ -6,7 +6,7 @@ import tarfile
 import tempfile
 from functools import partial, reduce
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import psutil
 import webdataset as wds
@@ -14,6 +14,7 @@ import webdataset as wds
 import numpy as np
 import pandas as pd
 import rioxarray
+import xarray as xr
 from deadtrees.utils.data_handling import make_blocks_vectorized, split_df
 from PIL import Image
 from tqdm.contrib.concurrent import process_map
@@ -36,7 +37,37 @@ All shards are balanced to contain an equal amount of classified deadtree occure
 allow a fair use of shards for traingin/ validation/ testing (composition of images should
 be fair no matter the use)
 
+Before the final dataset (combo) is created, various (temporary) datasets are created:
+(1) train - raw, do not use
+(2) train-balanced - balance the amounts of deadpixels (also filter to only include tiles with deadtrees)
+(3) train-negsamples - a set of tiles that are guaranteed to contain non-dead trees
+(4) train-randomsamples - a set of random other tiles
+
+(X) combo: (2) + (4) [take turns]
+
 """
+
+
+class Extractor:
+    """Extract subtiles from rgbn or mask tile"""
+
+    def __init__(self, *, tile_size: int = 256, source_dim: int = 2048):
+        self.tile_size = tile_size
+        self.source_dim = source_dim
+
+    def __call__(self, t: Optional[xr.DataArray], *, n_bands: int):
+        """Get data from tile, zeropad if necessary"""
+
+        # default: all-zero in case no mask file exists
+        data = np.zeros((n_bands, self.source_dim, self.source_dim), dtype=t.dtype)
+
+        if t is not None:
+            if (len(t.x) * len(t.y)) != (self.source_dim * self.source_dim):
+                data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
+            else:
+                data = t.values
+
+        return make_blocks_vectorized(data, self.tile_size)
 
 
 def _split_tile(
@@ -50,42 +81,21 @@ def _split_tile(
 ) -> List[Tuple[str, bytes, bytes]]:
     """Helper func for split_tiles"""
 
+    extract = Extractor(tile_size=tile_size, source_dim=source_dim)
+
     n_bands = 4  # RGBN
+    chunks = {"band": n_bands, "x": tile_size, "y": tile_size}
+    with rioxarray.open_rasterio(image, chunks=chunks) as t:
+        subtile_rgbn = extract(t, n_bands=n_bands)
 
-    if mask is None:
-        """No mask provided (random samples)"""
-
-        with rioxarray.open_rasterio(
-            image, chunks={"band": n_bands, "x": tile_size, "y": tile_size}
-        ) as t:
-            if len(t.x) * len(t.y) != source_dim ** 2:
-                rgbn_data = np.zeros((n_bands, source_dim, source_dim), dtype=t.dtype)
-                rgbn_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
-
-            else:
-                rgbn_data = t.values
-            subtile_rgbn = make_blocks_vectorized(rgbn_data, tile_size)
-            subtile_mask = make_blocks_vectorized(
-                np.zeros_like(rgbn_data[0:1]), tile_size
-            )
+    # process (optional) mask data
+    n_bands = 1  # Bool
+    if mask:
+        chunks = {"band": n_bands, "x": tile_size, "y": tile_size}
+        with rioxarray.open_rasterio(mask, chunks=chunks) as t:
+            subtile_mask = extract(t, n_bands=n_bands)
     else:
-
-        with rioxarray.open_rasterio(
-            image, chunks={"band": n_bands, "x": tile_size, "y": tile_size}
-        ) as t, rioxarray.open_rasterio(
-            mask, chunks={"band": 1, "x": tile_size, "y": tile_size}
-        ) as tm:
-            if len(t.x) * len(t.y) != source_dim ** 2:
-                rgbn_data = np.zeros((n_bands, source_dim, source_dim), dtype=t.dtype)
-                rgbn_data[:, 0 : 0 + t.shape[1], 0 : 0 + t.shape[2]] = t.values
-
-                mask_data = np.zeros((1, source_dim, source_dim), dtype=tm.dtype)
-                mask_data[:, 0 : 0 + tm.shape[1], 0 : 0 + tm.shape[2]] = tm.values
-            else:
-                rgbn_data = t.values
-                mask_data = tm.values
-            subtile_rgbn = make_blocks_vectorized(rgbn_data, tile_size)
-            subtile_mask = make_blocks_vectorized(mask_data, tile_size)
+        subtile_mask = extract(None, n_bands=n_bands)
 
     samples = []
     if format == "TIFF":
