@@ -1,15 +1,17 @@
 import io
 import logging
 import math
+from collections.abc import Iterable
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 import albumentations as A
 import webdataset as wds
 from albumentations.pytorch import ToTensorV2
 
 import numpy as np
+import omegaconf
 import PIL
 import pytorch_lightning as pl
 import torch
@@ -170,8 +172,8 @@ def transform(
 class DeadtreesDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        data_dir,
-        pattern,
+        data_dir: Union[List, str],
+        pattern: str,
         pattern_extra: Optional[List[str]] = None,
         batch_size_extra: Optional[List[int]] = None,
         train_dataloader_conf: Optional[DictConfig] = None,
@@ -179,7 +181,16 @@ class DeadtreesDataModule(pl.LightningDataModule):
         test_dataloader_conf: Optional[DictConfig] = None,
     ):
         super().__init__()
-        self.data_shards = sorted(Path(data_dir).glob(pattern))
+
+        print(type(data_dir))
+        print(data_dir)
+        if isinstance(data_dir, Iterable):
+            self.data_shards = [sorted(Path(d).glob(pattern)) for d in data_dir]
+            self.layout = "train/val/test"
+        else:
+            self.data_shards = sorted(Path(data_dir).glob(pattern))
+            self.layout = "single_directory"
+
         self.train_dataloader_conf = train_dataloader_conf or OmegaConf.create()
         self.val_dataloader_conf = val_dataloader_conf or OmegaConf.create()
         self.test_dataloader_conf = test_dataloader_conf or OmegaConf.create()
@@ -188,6 +199,11 @@ class DeadtreesDataModule(pl.LightningDataModule):
         self.batch_size_extra = []
 
         if pattern_extra and batch_size_extra:
+            if self.layout == "train/val/test":
+                raise ValueError(
+                    "Combining pattern_extra with train/val/test layout not allowed"
+                )
+
             for pcnt, p in enumerate(pattern_extra):
                 self.data_shards_extra.append(sorted(Path(data_dir).glob(p)))
             if len(batch_size_extra) > 0:
@@ -207,9 +223,15 @@ class DeadtreesDataModule(pl.LightningDataModule):
         in_channels: Optional[int] = 4,  # change to 3 for rgb training instead of rgbn
         classes: Optional[int] = 3,  # change to 2 for single class (+bg) setup
     ) -> None:
-        train_shards, valid_shards, test_shards = split_shards(
-            self.data_shards, split_fractions
-        )
+        if self.layout == "single_directory":
+            train_shards, valid_shards, test_shards = split_shards(
+                self.data_shards, split_fractions
+            )
+        else:
+            train_shards, valid_shards, test_shards = self.data_shards
+            train_shards = [str(x) for x in train_shards]
+            valid_shards = [str(x) for x in valid_shards]
+            test_shards = [str(x) for x in test_shards]
 
         # determine the length of the dataset
         shard_size = sum(1 for _ in DataLoader(wds.WebDataset(train_shards[0])))

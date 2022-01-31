@@ -2,6 +2,7 @@
 
 # silence pytorch lightning bolts UserWarning about missing gym package (as of v0.3.0)
 import warnings
+from pathlib import Path
 from typing import List, Optional
 
 import hydra
@@ -39,14 +40,32 @@ def train(config: DictConfig) -> Optional[float]:
         seed_everything(config.seed, workers=True)
 
     # Init Lightning datamodule
-    log.info(f"Instantiating datamodule <{config.datamodule._target_}>")
-    datamodule: LightningDataModule = hydra.utils.instantiate(
-        config.datamodule,
-        data_dir=get_env("TRAIN_DATASET_PATH"),
-        pattern=config.datamodule.pattern,
-        pattern_extra=config.datamodule.get("pattern_extra", None),
-        batch_size_extra=config.datamodule.get("batch_size_extra", None),
-    )
+
+    ddir = Path(get_env("TRAIN_DATASET_PATH"))
+    subfolders = ["train", "val", "test"]
+    if all([(ddir / d).is_dir() for d in subfolders]):
+        # dataset/train, dataset/val, dataset/test layout
+        log.info(
+            f"Instantiating datamodule <{config.datamodule._target_}> with train, val, test folder layout"
+        )
+        datamodule: LightningDataModule = hydra.utils.instantiate(
+            config.datamodule,
+            data_dir=[str(ddir / d) for d in subfolders],
+            pattern=config.datamodule.pattern,
+            pattern_extra=config.datamodule.get("pattern_extra", None),
+            batch_size_extra=config.datamodule.get("batch_size_extra", None),
+        )
+    else:
+        log.info(
+            f"Instantiating datamodule <{config.datamodule._target_}> with single folder layout"
+        )
+        datamodule: LightningDataModule = hydra.utils.instantiate(
+            config.datamodule,
+            data_dir=get_env("TRAIN_DATASET_PATH"),
+            pattern=config.datamodule.pattern,
+            pattern_extra=config.datamodule.get("pattern_extra", None),
+            batch_size_extra=config.datamodule.get("batch_size_extra", None),
+        )
     datamodule.setup(
         in_channels=config.model.network.in_channels,
         classes=config.model.network.classes,
