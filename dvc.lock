@@ -364,7 +364,15 @@ stages:
       size: 4167321600
       nfiles: 195
     outs:
+    - path: data/dataset/test
+      md5: a2cdcc4fce869836f53b86343b86342c.dir
+      size: 448788480
+      nfiles: 21
     - path: data/dataset/train
       md5: f7383adcd899f831abfd1f008384f5af.dir
       size: 3056035840
       nfiles: 143
+    - path: data/dataset/val
+      md5: 987e2f69e2a5650b2700f7a611a878e6.dir
+      size: 876206080
+      nfiles: 41

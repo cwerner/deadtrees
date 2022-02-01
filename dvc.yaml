@@ -91,6 +91,8 @@ stages:
     - data/dataset/train_2019
     outs:
     - data/dataset/train
+    - data/dataset/val
+    - data/dataset/test
 
   # train: do this manually
 

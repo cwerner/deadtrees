@@ -40,7 +40,7 @@ def main():
 
     # create train, validation, test folders
     (args.outdir / "train").mkdir(parents=True, exist_ok=True)
-    (args.outdir / "validation").mkdir(parents=True, exist_ok=True)
+    (args.outdir / "val").mkdir(parents=True, exist_ok=True)
     (args.outdir / "test").mkdir(parents=True, exist_ok=True)
 
     for year, indir in zip(years_extracted, args.indirs):
