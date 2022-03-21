@@ -77,6 +77,7 @@ class Extractor:
 def _split_tile(
     image: Path,
     mask: Path,
+    lu: Path,
     *,
     source_dim: int,
     tile_size: int,
@@ -100,6 +101,16 @@ def _split_tile(
     else:
         subtile_mask = extract(None, n_bands=1)
 
+    # process (optional) lu data
+    if lu:
+        chunks = {"band": n_bands, "x": tile_size, "y": tile_size}
+        with rioxarray.open_rasterio(lu, chunks=chunks) as t:
+            subtile_lu = extract(t, n_bands=1)
+    else:
+        # NOTE: convert to 1 for lu image (instead of 0 for masks)
+        # TODO: check if this is the right thing to do in general
+        subtile_lu = extract(None, n_bands=1) + 1
+
     samples = []
     if format == "TIFF":
         suffix = "tif"
@@ -114,6 +125,7 @@ def _split_tile(
         if np.min(subtile_rgbn[i]) != np.max(subtile_rgbn[i]):
             im = Image.fromarray(np.rollaxis(subtile_rgbn[i], 0, 3), "RGBA")
             im_mask = Image.fromarray(subtile_mask[i].squeeze())
+            im_lu = Image.fromarray(subtile_lu[i].squeeze())
 
             im_byte_arr = io.BytesIO()
             im.save(im_byte_arr, format=format)
@@ -123,10 +135,15 @@ def _split_tile(
             im_mask.save(im_mask_byte_arr, format=format)
             im_mask_byte_arr = im_mask_byte_arr.getvalue()
 
+            im_lu_byte_arr = io.BytesIO()
+            im_lu.save(im_lu_byte_arr, format=format)
+            im_lu_byte_arr = im_lu_byte_arr.getvalue()
+
             sample = {
                 "__key__": subtile_name,
                 f"rgbn.{suffix}": im_byte_arr,
                 f"mask.{suffix}": im_mask_byte_arr,
+                f"lu.{suffix}": im_lu_byte_arr,
                 "txt": str(
                     round(
                         float(np.count_nonzero(subtile_mask[i]))
@@ -141,7 +158,9 @@ def _split_tile(
     return samples
 
 
-def split_tiles(images, masks, workers: int, shardpattern: str, **kwargs) -> List[Any]:
+def split_tiles(
+    images, masks, lus, workers: int, shardpattern: str, **kwargs
+) -> List[Any]:
     """Split tile into subtiles in parallel and save them to disk"""
 
     valid_subtiles = kwargs.get("valid_subtiles", None)
@@ -153,6 +172,7 @@ def split_tiles(images, masks, workers: int, shardpattern: str, **kwargs) -> Lis
             partial(_split_tile, **kwargs),
             images,
             masks,
+            lus,
             max_workers=workers,
             chunksize=1,
         )
@@ -178,6 +198,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("image_dir", type=Path)
     parser.add_argument("mask_dir", type=Path)
+    parser.add_argument("lu_dir", type=Path)
     parser.add_argument("outdir", type=Path)
 
     num_cores = psutil.cpu_count(logical=False)
@@ -258,12 +279,28 @@ def main():
     # subtile_stats = split_tiles(train_files)
     images = sorted(args.image_dir.glob("*.tif"))
     masks = sorted(args.mask_dir.glob("*.tif"))
+    lus = sorted(args.lu_dir.glob("*.tif"))
 
     image_names = {i.name for i in images}
     mask_names = {i.name for i in masks}
+    lu_names = {i.name for i in lus}
 
     # limit set of images to images that have equivalent mask tiles
-    train_images = [i for i in images if i.name in image_names.intersection(mask_names)]
+    train_images = [
+        i
+        for i in images
+        if i.name in image_names.intersection(mask_names).intersection(lu_names)
+    ]
+    train_masks = [
+        i
+        for i in masks
+        if i.name in mask_names.intersection(image_names).intersection(lu_names)
+    ]
+    train_lus = [
+        i
+        for i in lus
+        if i.name in lu_names.intersection(mask_names).intersection(image_names)
+    ]
 
     cfg = dict(
         source_dim=args.source_dim,
@@ -273,7 +310,8 @@ def main():
 
     subtile_stats = split_tiles(
         train_images,
-        masks,
+        train_masks,
+        train_lus,
         args.workers,
         str(args.outdir / args.sub_dir / "train-%06d.tar"),
         **cfg,
@@ -324,6 +362,7 @@ def main():
                     random.shuffle(s)
                 for i in s:
                     dst.add(f"{tmpdir}/{i}.mask.{suffix}", f"{i}.mask.{suffix}")
+                    dst.add(f"{tmpdir}/{i}.lu.{suffix}", f"{i}.lu.{suffix}")
                     dst.add(f"{tmpdir}/{i}.rgbn.{suffix}", f"{i}.rgbn.{suffix}")
                     dst.add(f"{tmpdir}/{i}.txt", f"{i}.txt")
 
@@ -363,9 +402,14 @@ def main():
         format=args.format,
         valid_subtiles=random_subtiles,  # subset data with random selection of subtiles
     )
+
+    random_images_names = {i.name for i in random_images}
+    random_lus = [i for i in lus if i.name in random_images_names]
+
     subtile_stats_rnd = split_tiles(
         random_images,
         [None] * len(random_images),
+        random_lus,
         args.workers,
         str(args.outdir / args.sub_dir / "train-randomsamples-%06d.tar"),
         **cfg,
