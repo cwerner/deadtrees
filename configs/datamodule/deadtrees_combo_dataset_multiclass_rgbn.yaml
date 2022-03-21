@@ -1,0 +1,19 @@
+# @package _global_
+datamodule:
+  _target_: deadtrees.data.deadtreedata.DeadtreesDataModule
+  pattern: "train-combo-*.tar"
+  train_dataloader_conf:
+    batch_size: 32
+    num_workers: 2
+  val_dataloader_conf:
+    batch_size: 32
+    num_workers: 2
+  test_dataloader_conf:
+    batch_size: 32
+    num_workers: 2
+
+model:
+  network:
+    classes: 3
+    class_labels: ["background", "conifers", "deciduous"]
+    in_channels: 4
