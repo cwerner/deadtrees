@@ -5,7 +5,7 @@ defaults:
     - _self_
     - trainer: default.yaml
     - model: default.yaml
-    - datamodule: deadtrees_combo_dataset_singleclass_rgbn.yaml
+    - datamodule: deadtrees_combo_dataset_multiclass_rgbn.yaml
     - callbacks: default.yaml
     - logger: wandb.yaml
 
