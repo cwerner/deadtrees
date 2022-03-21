@@ -66,6 +66,7 @@ stages:
         python scripts/createdataset.py 
         data/processed.images.${item} 
         data/processed.masks.${item} 
+        data/processed.lus.${item} 
         data/dataset 
         --subdir train_${item}
         --source_dim ${source_dim}
@@ -75,6 +76,7 @@ stages:
       deps:
       - data/processed.images.${item}
       - data/processed.masks.${item} 
+      - data/processed.lus.${item} 
       params:
       - source_dim
       - createdataset.tile_size
