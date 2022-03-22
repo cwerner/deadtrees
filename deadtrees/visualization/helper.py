@@ -1,9 +1,12 @@
 import logging
 from typing import Dict, List, Optional, Union
 
+import seaborn as sns
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 from deadtrees.data.deadtreedata import DeadtreeDatasetConfig
 from matplotlib.offsetbox import AnchoredText
@@ -99,7 +102,7 @@ def show(
     stats: Optional[Dict] = None,
     dpi: Optional[int] = 100,
     display: Optional[bool] = False,
-) -> np.ndarray:
+) -> Optional[np.ndarray]:
 
     items = {k: v for k, v in zip(["x", "y", "y_hat"], [x, y, y_hat]) if v is not None}
     items_orig = items.copy()
@@ -178,6 +181,48 @@ def show(
     fig.subplots_adjust(wspace=0, hspace=0)
     fig.tight_layout()
     out = fig2img(fig, dpi=dpi)
+    plt.close(fig)
+
+    if is_running_from_ipython():
+        if display:
+            render_image(out)
+            return None
+
+    return out
+
+
+def show_cm(
+    df_cm: pd.DataFrame,
+    df_cm_masked: pd.DataFrame,
+    *,
+    dpi: Optional[int] = 100,
+    display: Optional[bool] = False,
+) -> Optional[np.ndarray]:
+
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+
+    for i, df in enumerate([df_cm, df_cm_masked]):
+        sns.heatmap(
+            df,
+            ax=ax[i],
+            annot=True,
+            square=True,
+            cmap="rocket",
+            # xticklabels=self.classes,
+            # yticklabels=self.classes,
+            cbar=True,
+            cbar_kws={"shrink": 0.8},
+        )
+
+        ax[i].set_xlabel("Predicted")
+        ax[i].set_ylabel("Actual")
+
+    ax[0].title.set_text("Default")
+    ax[1].title.set_text("Forest Area Only")
+
+    fig.subplots_adjust(wspace=0, hspace=0)
+    fig.tight_layout()
+    out = fig2img(fig, dpi=dpi or 72)
     plt.close(fig)
 
     if is_running_from_ipython():

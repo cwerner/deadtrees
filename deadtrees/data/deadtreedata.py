@@ -161,9 +161,10 @@ def transform(
         )
         sample["image"] = transformed["image"].float()
         sample["mask"] = transformed["mask"].long()
-        sample["lu"] = transformed["lu"]  # .long()
+        sample["lu"] = transformed["lu"]
 
     sample["image"] = sample["image"][0:in_channels]
+    sample["lu"] = torch.tensor(sample["lu"], dtype=torch.long)
 
     if classes == 2:
         sample["mask"][sample["mask"] > 1] = 1

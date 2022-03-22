@@ -18,7 +18,7 @@ from deadtrees.loss.losses import (
 )
 from deadtrees.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
 from deadtrees.utils import utils
-from deadtrees.visualization.helper import fig2img, show
+from deadtrees.visualization.helper import show, show_cm
 from omegaconf import DictConfig
 from torch import Tensor
 
@@ -83,15 +83,17 @@ class SemSegment(pl.LightningModule):  # type: ignore
         clean_network_conf = network.copy()
         del clean_network_conf.architecture
         del clean_network_conf.losses
-        del clean_network_conf.class_labels
+        n_classes = len(clean_network_conf.classes)
+        del clean_network_conf.classes
 
-        self.model = Model(**clean_network_conf)
+        self.model = Model(**clean_network_conf, classes=n_classes)
         # self.model.apply(initialize_weights)
 
         self.save_hyperparameters()
-        self.classes = list(range(self.hparams["network"]["classes"]))
-        self.class_labels = self.hparams["network"]["class_labels"]
-        self.classes_wout_bg = [c for c in self.classes if c != 0]
+
+        self.classes = self.hparams["network"]["classes"]
+        self.classes_int = list(range(len(self.classes)))
+        self.classes_int_wout_bg = [c for c in self.classes_int if c != 0]
 
         self.in_channels = self.hparams["network"]["in_channels"]
 
@@ -106,13 +108,15 @@ class SemSegment(pl.LightningModule):  # type: ignore
         for loss_component in network.losses:
             if loss_component == "GDICE":
                 # This the only required loss term
-                self.generalized_dice_loss = GeneralizedDice(idc=self.classes_wout_bg)
+                self.generalized_dice_loss = GeneralizedDice(
+                    idc=self.classes_int_wout_bg
+                )
             elif loss_component == "FOCAL":
-                self.focal_loss = FocalLoss(idc=self.classes, gamma=2)
+                self.focal_loss = FocalLoss(idc=self.classes_int, gamma=2)
             elif loss_component == "BOUNDARY":
-                self.boundary_loss = BoundaryLoss(idc=self.classes_wout_bg)
+                self.boundary_loss = BoundaryLoss(idc=self.classes_int_wout_bg)
             elif loss_component == "BOUNDARY-RAMPED":
-                self.boundary_loss = BoundaryLoss(idc=self.classes_wout_bg)
+                self.boundary_loss = BoundaryLoss(idc=self.classes_int_wout_bg)
                 self.boundary_loss_ramped = True
             else:
                 raise NotImplementedError(
@@ -159,7 +163,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
             self.log(f"{stage}/dice_loss", loss_gd)
             loss += loss_gd
 
-        if self.boundary_loss:
+        if self.boundary_loss and distmap is not None:
             loss_bd = self.boundary_loss(y_hat, distmap)
             self.log(f"{stage}/boundary_loss", loss_bd)
             loss += self.alpha * loss_bd if self.boundary_loss_ramped else loss_bd
@@ -184,7 +188,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         img, mask, distmap, _, stats = create_combined_batch(batch)
 
         logits = self.model(img)
-        y = class2one_hot(mask, K=len(self.classes))
+        y = class2one_hot(mask, K=len(self.classes_int))
         y_hat = logits.softmax(dim=1)
 
         loss = self.calculate_loss(y_hat, y, "train", distmap=distmap)
@@ -205,7 +209,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         img, mask, distmap, lu, stats = create_combined_batch(batch)
 
         logits = self.model(img)
-        y = class2one_hot(mask, K=len(self.classes))
+        y = class2one_hot(mask, K=len(self.classes_int))
         y_hat = logits.softmax(dim=1)
 
         loss = self.calculate_loss(y_hat, y, stage="val", distmap=distmap)
@@ -246,11 +250,11 @@ class SemSegment(pl.LightningModule):  # type: ignore
             "lu": lu,
         }
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch: Tuple[Tensor], batch_idx) -> Dict[str, Any]:
         img, mask, _, lu, stats = batch
 
         logits = self.model(img)
-        y = class2one_hot(mask, K=len(self.classes))
+        y = class2one_hot(mask, K=len(self.classes_int))
         y_hat = logits.softmax(dim=1)
 
         self.log_metrics(y_hat, y, stage="test")
@@ -260,70 +264,37 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         return {"target": mask, "prediction": y_hat.argmax(dim=1), "lu": lu}
 
-    def validation_epoch_end(self, outputs):
+    def validation_epoch_end(self, outputs: Dict[str, Any]):
         prediction = torch.cat([tmp["prediction"] for tmp in outputs])
         target = torch.cat([tmp["target"] for tmp in outputs])
+
+        # --- masked cm, flatten all tensors, subset by forest pixels
+        lu = torch.ravel(torch.cat([tmp["lu"] for tmp in outputs]))
+        prediction_masked = torch.ravel(prediction)[lu == 1]
+        target_masked = torch.ravel(target)[lu == 1]
 
         confusion_matrix = torchmetrics.functional.confusion_matrix(
             prediction, target, normalize="true", num_classes=len(self.classes)
         )
-        df_cm = pd.DataFrame(
-            confusion_matrix.detach().cpu().numpy(),
-            index=self.classes,
-            columns=self.classes,
-        )
-
-        # --- masked cm, flatten all tensors, subset by forest pixels
-        lu = torch.ravel(torch.cat([tmp["lu"] for tmp in outputs]))
-        prediction = torch.ravel(prediction)[lu]
-        target = torch.ravel(target)[lu]
 
         confusion_matrix_masked = torchmetrics.functional.confusion_matrix(
-            prediction, target, normalize="true", num_classes=len(self.classes)
-        )
-        df_cm_masked = pd.DataFrame(
-            confusion_matrix_masked.detach().cpu().numpy(),
-            index=self.classes,
-            columns=self.classes,
+            prediction_masked,
+            target_masked,
+            normalize="true",
+            num_classes=len(self.classes),
         )
 
-        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+        dfs = {}
+        for label, cm in zip(
+            ["cm_norm", "cm_norm_masked"], [confusion_matrix, confusion_matrix_masked]
+        ):
+            dfs[label] = pd.DataFrame(
+                cm.detach().cpu().numpy(),
+                index=self.classes,
+                columns=self.classes,
+            )
 
-        sns.heatmap(
-            df_cm,
-            ax=ax[0],
-            annot=True,
-            square=True,
-            cmap="rocket",
-            xticklabels=self.class_labels,
-            yticklabels=self.class_labels,
-            cbar_kws={"shrink": 0.8},
-            cbar=True,
-        )
-
-        sns.heatmap(
-            df_cm_masked,
-            ax=ax[1],
-            annot=True,
-            square=True,
-            cmap="rocket",
-            xticklabels=self.class_labels,
-            yticklabels=self.class_labels,
-            cbar_kws={"shrink": 0.8},
-            cbar=True,
-        )
-
-        ax[0].title.set_text("Default")
-        ax[0].set_xlabel("Predicted")
-        ax[0].set_ylabel("Actual")
-        ax[1].title.set_text("Forest Area Only")
-        ax[1].set_xlabel("Predicted")
-        ax[1].set_ylabel("Actual")
-
-        fig.subplots_adjust(wspace=0, hspace=0)
-        fig.tight_layout()
-        out = fig2img(fig, dpi=72)
-        plt.close(fig)
+        cm_chart = show_cm(dfs["cm_norm"], dfs["cm_norm_masked"], dpi=72, display=False)
 
         for logger in self.logger:
             if isinstance(logger, pl.loggers.wandb.WandbLogger):
@@ -332,77 +303,61 @@ class SemSegment(pl.LightningModule):  # type: ignore
                 logger.experiment.log(
                     {
                         "Confusion matrix (Val)": wandb.Image(
-                            out,
-                            caption=f"CM-Val-{self.trainer.global_step}",
+                            cm_chart,
+                            caption=f"CM-Val-Norm-{self.trainer.global_step}",
                         )
                     },
                     commit=False,
                 )
 
-    def test_epoch_end(self, outputs):
+    def test_epoch_end(self, outputs: Dict[str, Any]):
+
+        # --- original cm
         prediction = torch.cat([tmp["prediction"] for tmp in outputs])
         target = torch.cat([tmp["target"] for tmp in outputs])
+
+        # --- masked cm, flatten all tensors, subset by forest pixels
+        lu = torch.ravel(torch.cat([tmp["lu"] for tmp in outputs]))
+        prediction_masked = torch.ravel(prediction)[lu == 1]
+        target_masked = torch.ravel(target)[lu == 1]
 
         confusion_matrix = torchmetrics.functional.confusion_matrix(
             prediction, target, normalize="true", num_classes=len(self.classes)
         )
-        df_cm = pd.DataFrame(
-            confusion_matrix.detach().cpu().numpy(),
-            index=self.classes,
-            columns=self.classes,
-        )
 
-        # --- masked cm, flatten all tensors, subset by forest pixels
-        lu = torch.ravel(torch.cat([tmp["lu"] for tmp in outputs]))
-        prediction = torch.ravel(prediction)[lu]
-        target = torch.ravel(target)[lu]
+        confusion_matrix_px = torchmetrics.functional.confusion_matrix(
+            prediction, target, num_classes=len(self.classes)
+        )
 
         confusion_matrix_masked = torchmetrics.functional.confusion_matrix(
-            prediction, target, normalize="true", num_classes=len(self.classes)
-        )
-        df_cm_masked = pd.DataFrame(
-            confusion_matrix_masked.detach().cpu().numpy(),
-            index=self.classes,
-            columns=self.classes,
+            prediction_masked,
+            target_masked,
+            normalize="true",
+            num_classes=len(self.classes),
         )
 
-        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-
-        sns.heatmap(
-            df_cm,
-            ax=ax[0],
-            annot=True,
-            square=True,
-            cmap="rocket",
-            xticklabels=self.class_labels,
-            yticklabels=self.class_labels,
-            cbar=True,
-            cbar_kws={"shrink": 0.8},
+        confusion_matrix_masked_px = torchmetrics.functional.confusion_matrix(
+            prediction_masked, target_masked, num_classes=len(self.classes)
         )
 
-        sns.heatmap(
-            df_cm_masked,
-            ax=ax[1],
-            annot=True,
-            square=True,
-            cmap="rocket",
-            xticklabels=self.class_labels,
-            yticklabels=self.class_labels,
-            cbar=True,
-            cbar_kws={"shrink": 0.8},
-        )
+        dfs = {}
+        for label, cm in zip(
+            ["cm_norm", "cm_px", "cm_norm_masked", "cm_px_masked"],
+            [
+                confusion_matrix,
+                confusion_matrix_px,
+                confusion_matrix_masked,
+                confusion_matrix_masked_px,
+            ],
+        ):
+            dfs[label] = pd.DataFrame(
+                cm.detach().cpu().numpy(),
+                index=self.classes,
+                columns=self.classes,
+            )
 
-        ax[0].title.set_text("Default")
-        ax[0].set_xlabel("Predicted")
-        ax[0].set_ylabel("Actual")
-        ax[1].title.set_text("Forest Area Only")
-        ax[1].set_xlabel("Predicted")
-        ax[1].set_ylabel("Actual")
-
-        fig.subplots_adjust(wspace=0, hspace=0)
-        fig.tight_layout()
-        out = fig2img(fig, dpi=72)
-        plt.close(fig)
+        cm_chart = show_cm(dfs["cm_norm"], dfs["cm_norm_masked"], dpi=72, display=False)
+        cm_chart_px = show_cm(dfs["cm_px"], dfs["cm_px_masked"], dpi=72, display=False)
 
         for logger in self.logger:
             if isinstance(logger, pl.loggers.wandb.WandbLogger):
@@ -410,16 +365,22 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
                 logger.experiment.log(
                     {
-                        "Confusion matrix (Test)": wandb.Image(
-                            out,
-                            caption=f"CM-Test-{self.trainer.global_step}",
-                        )
+                        "Confusion Matrix (Test) - Normalized": wandb.Image(
+                            cm_chart,
+                            caption=f"CM-Test-Norm-{self.trainer.global_step}",
+                        ),
+                        "Confusion Matrix (Test) - Pixel": wandb.Image(
+                            cm_chart_px,
+                            caption=f"CM-Test-Px-{self.trainer.global_step}",
+                        ),
                     },
                     commit=False,
                 )
 
-        log.info(f"CM - DEFAULT: {df_cm.to_string()}")
-        log.info(f"CM - FOREST ONLY: {df_cm_masked.to_string()}")
+        log.info(f"CM - DEFAULT - NORMALIZED: {dfs['cm_norm'].to_string()}")
+        log.info(f"CM - FORESTONLY - NORMALIZED: {dfs['cm_norm_masked'].to_string()}")
+        log.info(f"CM - DEFAULT - PIXEL: {dfs['cm_px'].to_string()}")
+        log.info(f"CM - FORESTONLY - PIXEL: {dfs['cm_px_masked'].to_string()}")
 
     def teardown(self, stage=None) -> None:
         log.debug(f"len(stats_train): {len(self.stats['train'])}")
