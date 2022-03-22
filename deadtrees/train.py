@@ -68,7 +68,7 @@ def train(config: DictConfig) -> Optional[float]:
         )
     datamodule.setup(
         in_channels=config.model.network.in_channels,
-        classes=config.model.network.classes,
+        classes=len(config.model.network.classes),
     )
 
     # Init Lightning model

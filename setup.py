@@ -14,7 +14,7 @@ if not MODEL_CHECKPOINT_PATH.exists():
 
 # extra package dependencies
 EXTRAS = {
-    "train": ["wandb"],
+    "train": ["wandb", "seaborn"],
     "preprocess": [
         "gdal",
         "pygeos",

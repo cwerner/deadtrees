@@ -14,5 +14,5 @@ datamodule:
 
 model:
   network:
-    classes: ["background", "deadtree"]
+    classes: ["background", "conifers", "deciduous"]
     in_channels: 4

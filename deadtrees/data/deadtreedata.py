@@ -94,8 +94,10 @@ def mask_decoder(data):
     return np.asarray(img)
 
 
-def sample_decoder(sample, img_suffix="rgbn.tif", msk_suffix="mask.tif"):
-    """Decode data (image, mask, stats) from sharded datastore"""
+def sample_decoder(
+    sample, img_suffix="rgbn.tif", msk_suffix="mask.tif", lu_suffix="lu.tif"
+):
+    """Decode data (image, mask, lu, stats) from sharded datastore"""
 
     assert img_suffix in sample, "Wrong image suffix provided"
 
@@ -106,6 +108,10 @@ def sample_decoder(sample, img_suffix="rgbn.tif", msk_suffix="mask.tif"):
 
     if msk_suffix in sample:
         sample[msk_suffix] = mask_decoder(sample[msk_suffix])
+
+    if lu_suffix in sample:
+        sample[lu_suffix] = mask_decoder(sample[lu_suffix])
+
     return sample
 
 
@@ -149,12 +155,16 @@ def transform(
     """Apply transform func to sample and modify channels and/ or classes as specified in training setup"""
     if transform_func:
         transformed = transform_func(
-            image=sample["image"].copy(), mask=sample["mask"].copy()
+            image=sample["image"].copy(),
+            mask=sample["mask"].copy(),
+            lu=sample["lu"].copy(),
         )
         sample["image"] = transformed["image"].float()
         sample["mask"] = transformed["mask"].long()
+        sample["lu"] = transformed["lu"]
 
     sample["image"] = sample["image"][0:in_channels]
+    sample["lu"] = torch.tensor(sample["lu"], dtype=torch.long)
 
     if classes == 2:
         sample["mask"][sample["mask"] > 1] = 1
@@ -253,7 +263,7 @@ class DeadtreesDataModule(pl.LightningDataModule):
                 )
                 .shuffle(shuffle)
                 .map(sample_decoder)
-                .rename(image="rgbn.tif", mask="mask.tif", stats="txt")
+                .rename(image="rgbn.tif", mask="mask.tif", lu="lu.tif", stats="txt")
                 .map(
                     partial(
                         transform,
@@ -263,7 +273,7 @@ class DeadtreesDataModule(pl.LightningDataModule):
                         distmap=True,
                     )
                 )
-                .to_tuple("image", "mask", "distmap", "stats")
+                .to_tuple("image", "mask", "distmap", "lu", "stats")
             )
 
         self.train_data = build_dataset(
