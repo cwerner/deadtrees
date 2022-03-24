@@ -32,13 +32,14 @@ cd deadtrees
 
 wget -qO- https://micromamba.snakepit.net/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
 
-# init shell
+# init shell (~/micromamba in the following line is the location where envs are stored, could be somewhere else)
 ./bin/micromamba shell init -s bash -p ~/micromamba
 source ~/.bashrc
 
 micromamba create -p deadtrees python=3.9 -c conda-forge
 micromamba activate deadtrees
-micromamba install pytorch torchvision albumentations -c fastchan -c conda-forge
+# install cuda-compiled foundational packages (force it for pytorch since the auto-detection often fails)
+micromamba install "pytorch=*=*cuda*" torchvision albumentations -c fastchan -c conda-forge
 
 # install requirements (basic requirements):
 pip install -e . 
