@@ -22,13 +22,6 @@ from deadtrees.visualization.helper import show, show_cm
 from omegaconf import DictConfig
 from torch import Tensor
 
-try:
-    import seaborn as sns
-
-    import matplotlib.pyplot as plt
-except ImportError:
-    print("Seaborn not installed! No confusion matrix for you...")
-
 log = utils.get_logger(__name__)
 
 
