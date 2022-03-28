@@ -23,7 +23,7 @@ random.seed(42)
 
 Path.ls = lambda x: list(x.iterdir())
 
-SHARDSIZE = 32
+SHARDSIZE = 16
 OVERSAMPLE_FACTOR = 2  # factor of random samples to dt + ndt samples
 
 """Summary:
@@ -301,6 +301,15 @@ def main():
         for i in lus
         if i.name in lu_names.intersection(mask_names).intersection(image_names)
     ]
+
+    train_images = sorted(train_images)
+    train_masks = sorted(train_masks)
+    train_lus = sorted(train_lus)
+
+    # print(len(train_images))
+    # print(len(train_masks))
+    # exit()
+    # print(len(train_lus))
 
     cfg = dict(
         source_dim=args.source_dim,

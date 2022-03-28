@@ -157,13 +157,14 @@ def create_masks(
     outdir: Path,
     shpfile: Path,
     workers: int,
+    simple: bool,
 ) -> None:
     """
     Stage 1: produce masks for training tiles
     """
 
     # load domain shape files and use its crs for the entire script
-    groundtruth = gpd.read_file(shpfile)
+    groundtruth = gpd.read_file(shpfile).explode()
     crs = groundtruth.crs  # reference crs
 
     tiles_df = create_tile_grid_gdf(indir / "locations.csv", crs)
@@ -186,6 +187,7 @@ def create_masks(
         crs=crs,
         inpath=indir,
         outpath=outdir,
+        simple=simple,
     )
 
 
@@ -205,6 +207,14 @@ def main():
         help="number of workers for parallel execution [def: %(default)s]",
     )
 
+    parser.add_argument(
+        "--simple",
+        dest="simple",
+        default=False,
+        action="store_true",
+        help="use just the geometry of the shapefile (no classes)",
+    )
+
     args = parser.parse_args()
 
     Path(args.outdir).mkdir(parents=True, exist_ok=True)
@@ -214,6 +224,7 @@ def main():
         args.outdir,
         args.shpfile,
         args.workers,
+        args.simple,
     )
 
 
