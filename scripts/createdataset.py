@@ -23,7 +23,7 @@ random.seed(42)
 
 Path.ls = lambda x: list(x.iterdir())
 
-SHARDSIZE = 16
+SHARDSIZE = 32
 OVERSAMPLE_FACTOR = 2  # factor of random samples to dt + ndt samples
 
 """Summary:
