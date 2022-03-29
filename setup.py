@@ -38,13 +38,14 @@ setup(
         "hydra-core>=1.1.0",
         "hydra-colorlog>=1.1.0",
         "pydantic",
-        "torch>=1.8.1",
-        "torchvision>=0.9.1",
+        "torch>=1.10.0",
+        "torchvision>=0.12.0",
         "pytorch-lightning>=1.5",
         "rich",
         "tqdm",
         "webdataset==0.1.62",
-        "segmentation_models_pytorch>=0.2.0",
+        "segmentation_models_pytorch>=0.2.1",
+        "efficientnet-pytorch>=0.7.1",
     ],
     # install in editable mode: pip install -e ".[train,preprocess]" or
     #                           pip install -e ".[all]"

@@ -278,14 +278,14 @@ stages:
       size: 109902740888
       nfiles: 30489
     - path: data/raw/shapefiles/deadtrees_2017
-      md5: 6dc3729e0e2cdf9fc1a3aa4919b60ba0.dir
-      size: 109773
+      md5: 8d9432d5827254797ae04f89ec30aae1.dir
+      size: 811993
       nfiles: 6
     outs:
     - path: data/processed.masks.2017
-      md5: 2e6d801d4c4e11563eda90d8085b7935.dir
-      size: 629310300
-      nfiles: 150
+      md5: ed46f628af2e934ce245fef7bb707d02.dir
+      size: 3633218132
+      nfiles: 866
   createdataset@2017:
     cmd: python scripts/createdataset.py  data/processed.images.2017  data/processed.masks.2017  data/processed.lus.2017  data/dataset  --subdir
       train_2017 --source_dim 2048 --tile_size 256 --format TIFF --stats stats_2017.csv
@@ -299,9 +299,9 @@ stages:
       size: 54193516092
       nfiles: 12918
     - path: data/processed.masks.2017
-      md5: 2e6d801d4c4e11563eda90d8085b7935.dir
-      size: 629310300
-      nfiles: 150
+      md5: ed46f628af2e934ce245fef7bb707d02.dir
+      size: 3633218132
+      nfiles: 866
     params:
       params.yaml:
         createdataset.tile_size: 256
@@ -309,12 +309,12 @@ stages:
         source_dim: 2048
     outs:
     - path: data/dataset/stats_2017.csv
-      md5: c805b68642bcc296e28da8b326884848
-      size: 386040
+      md5: b29cb5609b2c95ab0e819619279d4c1c
+      size: 2258658
     - path: data/dataset/train_2017
-      md5: e81f7940d0faff271da394321e311117.dir
-      size: 82698240
-      nfiles: 4
+      md5: 325e1c100e27b7ba458f7a49ad45b311.dir
+      size: 738652160
+      nfiles: 29
   createdataset@2019:
     cmd: python scripts/createdataset.py  data/processed.images.2019  data/processed.masks.2019  data/processed.lus.2019  data/dataset  --subdir
       train_2019 --source_dim 2048 --tile_size 256 --format TIFF --stats stats_2019.csv
@@ -341,9 +341,9 @@ stages:
       md5: c4bdc60a6b48ccbf31bba9c7504c19fe
       size: 2513851
     - path: data/dataset/train_2019
-      md5: 728a0796c7104bd7605a545436a961a3.dir
-      size: 1612994560
-      nfiles: 63
+      md5: c39665bff457346b2537a4a3a511b50b.dir
+      size: 1519052800
+      nfiles: 60
   createmasks@2019:
     cmd: python scripts/createmasks.py  data/processed.images.2019  data/processed.masks.2019  data/raw/shapefiles/deadtrees_2019/deadtrees_2019.shp
     deps:
@@ -364,23 +364,55 @@ stages:
     cmd: python scripts/mergedatasets.py data/dataset/train_2017 data/dataset/train_2019
     deps:
     - path: data/dataset/train_2017
-      md5: e81f7940d0faff271da394321e311117.dir
-      size: 82698240
-      nfiles: 4
+      md5: 325e1c100e27b7ba458f7a49ad45b311.dir
+      size: 738652160
+      nfiles: 29
     - path: data/dataset/train_2019
-      md5: 728a0796c7104bd7605a545436a961a3.dir
-      size: 1612994560
-      nfiles: 63
+      md5: c39665bff457346b2537a4a3a511b50b.dir
+      size: 1519052800
+      nfiles: 60
     outs:
     - path: data/dataset/test
-      md5: 3ff97b121f844527c47f56b64a0e9f9e.dir
-      size: 154163200
-      nfiles: 7
+      md5: 3ed97313db477e2d5f59e46b3d217014.dir
+      size: 202332160
+      nfiles: 9
     - path: data/dataset/train
-      md5: 353b5f9560a93eac1d40c0338055850c.dir
-      size: 1181839360
-      nfiles: 46
+      md5: 741a1c98ab0e5dcf2f896dde2ff6f5a8.dir
+      size: 1592913920
+      nfiles: 62
     - path: data/dataset/val
-      md5: 585409c048c574f7cc9bf5e32176da5b.dir
-      size: 359690240
-      nfiles: 14
+      md5: 14cbc9d627fef88c676cfbee18530b3f.dir
+      size: 462458880
+      nfiles: 18
+  createforestmasks@2019:
+    cmd: python scripts/createmasks.py  data/processed.images.2019  data/processed.lus.2019  data/raw/shapefiles/forestmask/CORINE_forest.shp
+      --simple
+    deps:
+    - path: data/processed.images.2019
+      md5: 35c31b781cb0bdb19650329132d83d05.dir
+      size: 144926802415
+      nfiles: 30489
+    - path: data/raw/shapefiles/forestmask/CORINE_forest.shp
+      md5: 63947721b118c62a091559483db5d8f6
+      size: 43334576
+    outs:
+    - path: data/processed.lus.2019
+      md5: e7700c6cafd6d3140afc916637ef54c6.dir
+      size: 54193516092
+      nfiles: 12918
+  createforestmasks@2017:
+    cmd: python scripts/createmasks.py  data/processed.images.2017  data/processed.lus.2017  data/raw/shapefiles/forestmask/CORINE_forest.shp
+      --simple
+    deps:
+    - path: data/processed.images.2017
+      md5: 66de96d201af5a47a09997691b992370.dir
+      size: 109902740888
+      nfiles: 30489
+    - path: data/raw/shapefiles/forestmask/CORINE_forest.shp
+      md5: 63947721b118c62a091559483db5d8f6
+      size: 43334576
+    outs:
+    - path: data/processed.lus.2017
+      md5: cd93e1d1eb4f857a9dab0cdc9e61c476.dir
+      size: 54193516092
+      nfiles: 12918

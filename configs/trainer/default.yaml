@@ -5,7 +5,7 @@ gpus: 1
 min_epochs: 1
 max_epochs: 500
 
-precision: 16
+precision: 32
 
 resume_from_checkpoint: null
 
@@ -14,6 +14,6 @@ num_sanity_val_steps: 0
 
 terminate_on_nan: True
 
- # extra tricks
+# extra tricks
 gradient_clip_val: 0.5
 stochastic_weight_avg: True

@@ -57,6 +57,23 @@ stages:
       outs:
       - data/processed.masks.${item}
 
+  createforestmasks:
+    foreach:
+      - 2017
+      - 2019
+    do:
+      cmd: >-
+        python scripts/createmasks.py 
+        data/processed.images.${item} 
+        data/processed.lus.${item} 
+        data/raw/shapefiles/forestmask/CORINE_forest.shp
+        --simple
+      deps:
+      - data/processed.images.${item}
+      - data/raw/shapefiles/forestmask/CORINE_forest.shp
+      outs:
+      - data/processed.lus.${item}      
+
   createdataset:
     foreach:
       - 2017

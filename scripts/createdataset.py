@@ -302,6 +302,15 @@ def main():
         if i.name in lu_names.intersection(mask_names).intersection(image_names)
     ]
 
+    train_images = sorted(train_images)
+    train_masks = sorted(train_masks)
+    train_lus = sorted(train_lus)
+
+    # print(len(train_images))
+    # print(len(train_masks))
+    # exit()
+    # print(len(train_lus))
+
     cfg = dict(
         source_dim=args.source_dim,
         tile_size=args.tile_size,

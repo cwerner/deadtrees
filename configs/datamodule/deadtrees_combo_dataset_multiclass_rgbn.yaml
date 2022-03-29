@@ -3,13 +3,13 @@ datamodule:
   _target_: deadtrees.data.deadtreedata.DeadtreesDataModule
   pattern: "train-combo-*.tar"
   train_dataloader_conf:
-    batch_size: 32
+    batch_size: 16
     num_workers: 2
   val_dataloader_conf:
-    batch_size: 32
+    batch_size: 16
     num_workers: 2
   test_dataloader_conf:
-    batch_size: 32
+    batch_size: 16
     num_workers: 2
 
 model:
