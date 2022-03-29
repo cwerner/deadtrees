@@ -13,6 +13,7 @@ import torch
 from deadtrees.loss.losses import (
     BoundaryLoss,
     class2one_hot,
+    DiceLoss,
     FocalLoss,
     GeneralizedDice,
 )
@@ -91,19 +92,25 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.in_channels = self.hparams["network"]["in_channels"]
 
         # losses
-        self.generalized_dice_loss = None
+        self.dice_loss = None
         self.focal_loss = None
         self.boundary_loss = None
 
         # parse loss config
         self.initial_alpha = 0.01  # make this a hyperparameter and/ or scale with epoch
         self.boundary_loss_ramped = False
+
+        assert (
+            ("GDICE" in network.losses) and (("DICE" in network.losses))
+        ) is False, f"Only GDICE _OR_ DICE allowed {network.losses}"
+
         for loss_component in network.losses:
             if loss_component == "GDICE":
                 # This the only required loss term
-                self.generalized_dice_loss = GeneralizedDice(
-                    idc=self.classes_int_wout_bg
-                )
+                self.dice_loss = GeneralizedDice(idc=self.classes_int_wout_bg)
+            elif loss_component == "DICE":
+                # This the only required loss term
+                self.dice_loss = DiceLoss(idc=self.classes_int_wout_bg)
             elif loss_component == "FOCAL":
                 self.focal_loss = FocalLoss(idc=self.classes_int, gamma=2)
             elif loss_component == "BOUNDARY":
@@ -119,7 +126,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         log.info(f"Losses: {network.losses}")
 
         # checks: we require GDICE!
-        assert self.generalized_dice_loss is not None
+        assert self.dice_loss is not None
 
         self.dice_metric = smp.utils.metrics.Fscore(
             ignore_channels=[0],
@@ -151,8 +158,15 @@ class SemSegment(pl.LightningModule):  # type: ignore
         """calculate compound loss"""
         loss, loss_gd, loss_bd, loss_fo = 0, None, None, None
 
-        if self.generalized_dice_loss:
-            loss_gd = self.generalized_dice_loss(y_hat, y)
+        if self.dice_loss:
+            loss_gd = self.dice_loss(y_hat, y)
+
+            if torch.isnan(loss_gd) or torch.isinf(loss_gd):
+                log.warn("Train dice loss is NaN! What is going on?")
+
+                m = {"y_hat": y_hat, "y": y}
+                torch.save(m, "dump.pytorch")
+
             self.log(f"{stage}/dice_loss", loss_gd)
             loss += loss_gd
 
@@ -390,6 +404,7 @@ class SemSegment(pl.LightningModule):  # type: ignore
         opt = torch.optim.Adam(
             self.parameters(),
             lr=self.hparams.training.learning_rate,
+            # eps=1e-6,
         )
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(
             opt, T_max=self.hparams.training.cosineannealing_tmax
