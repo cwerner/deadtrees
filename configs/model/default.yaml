@@ -6,7 +6,7 @@ network:
     decoder_channels: [256, 128, 64, 32, 16]
     encoder_depth: 5
     encoder_weights: "imagenet"
-    losses: ["DICE", "FOCAL", "BOUNDARY"]   # DICE or GDICE, FOCAL, BOUNDARY or BOUNDARY-RAMPED
+    losses: ["GDICE", "FOCAL", "BOUNDARY"]   # GWDICE, GDICE, DICE, FOCAL, BOUNDARY or BOUNDARY-RAMPED
 
 training:
     learning_rate: 0.0003 #3 #0.00015 #0.0001
