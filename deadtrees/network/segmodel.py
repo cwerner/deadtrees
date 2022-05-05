@@ -7,15 +7,17 @@ from typing import Any, Dict, Optional, Tuple
 import segmentation_models_pytorch as smp
 import torchmetrics
 
+import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-from deadtrees.loss.losses import (
+from deadtrees.loss.gdl import GeneralizedDiceLoss
+from deadtrees.loss.gwdl import GeneralizedWassersteinDiceLoss
+from deadtrees.loss.losses import (  # GeneralizedDice,   we now use another implementation of GDL
     BoundaryLoss,
     class2one_hot,
     DiceLoss,
     FocalLoss,
-    GeneralizedDice,
 )
 from deadtrees.network.extra import EfficientUnetPlusPlus, ResUnet, ResUnetPlusPlus
 from deadtrees.utils import utils
@@ -81,7 +83,18 @@ class SemSegment(pl.LightningModule):  # type: ignore
         del clean_network_conf.classes
 
         self.model = Model(**clean_network_conf, classes=n_classes)
-        # self.model.apply(initialize_weights)
+
+        if clean_network_conf.encoder_weights is None:
+            log.info("Initializing weights with Kaiming")
+            self.model.apply(initialize_weights)
+        else:
+            # Freeze encoder weights
+            self.model.encoder.eval()
+            for m in self.model.encoder.modules():
+                m.requires_grad_ = False
+            log.info(
+                f"Using existing encoder_weights: {clean_network_conf.encoder_weights}"
+            )
 
         self.save_hyperparameters()
 
@@ -106,8 +119,17 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         for loss_component in network.losses:
             if loss_component == "GDICE":
-                # This the only required loss term
-                self.dice_loss = GeneralizedDice(idc=self.classes_int_wout_bg)
+                # NOTE: we now use another implementation of GDL
+                # self.dice_loss = GeneralizedDice(idc=self.classes_int)
+                self.dice_loss = GeneralizedDiceLoss()
+            elif loss_component == "GWDICE":
+                dist_mat = np.array([[0.0, 1.0, 1.0], [1.0, 0.0, 0.5], [1.0, 0.5, 0.0]])
+                if self.classes_int == 2:
+                    dist_mat = dist_mat[0:2, 0:2]
+                self.dice_loss = GeneralizedWassersteinDiceLoss(
+                    dist_matrix=dist_mat,
+                    # weighting_mode='GDL'
+                )
             elif loss_component == "DICE":
                 # This the only required loss term
                 self.dice_loss = DiceLoss(idc=self.classes_int_wout_bg)
@@ -159,36 +181,39 @@ class SemSegment(pl.LightningModule):  # type: ignore
         loss, loss_gd, loss_bd, loss_fo = 0, None, None, None
 
         if self.dice_loss:
-            loss_gd = self.dice_loss(y_hat, y)
+            if isinstance(self.dice_loss, GeneralizedWassersteinDiceLoss):
+                # hack to make gwdice work...
+                loss_gd = self.dice_loss(y_hat, torch.argmax(y, dim=1))
+            else:
+                loss_gd = self.dice_loss(y_hat, y)
 
             if torch.isnan(loss_gd) or torch.isinf(loss_gd):
                 log.warn("Train dice loss is NaN! What is going on?")
 
-                m = {"y_hat": y_hat, "y": y}
-                torch.save(m, "dump.pytorch")
-
-            self.log(f"{stage}/dice_loss", loss_gd)
+            self.log(f"{stage}/dice_loss", loss_gd, on_step=False, on_epoch=True)
             loss += loss_gd
 
         if self.boundary_loss and distmap is not None:
             loss_bd = self.boundary_loss(y_hat, distmap)
-            self.log(f"{stage}/boundary_loss", loss_bd)
+            self.log(f"{stage}/boundary_loss", loss_bd, on_step=False, on_epoch=True)
             loss += self.alpha * loss_bd if self.boundary_loss_ramped else loss_bd
 
         if self.focal_loss:
             loss_fo = self.focal_loss(y_hat, y)
-            self.log(f"{stage}/focal_loss", loss_fo)
+            self.log(f"{stage}/focal_loss", loss_fo, on_step=False, on_epoch=True)
             loss += loss_fo
 
-        self.log(f"{stage}/total_loss", loss)
+        self.log(f"{stage}/total_loss", loss, on_step=False, on_epoch=True)
 
         return loss
 
     def log_metrics(self, y_hat: Tensor, y: Tensor, *, stage: str):
         dice_score = self.dice_metric(y_hat, y)
         dice_score_with_bg = self.dice_metric_with_bg(y_hat, y)
-        self.log(f"{stage}/dice", dice_score)
-        self.log(f"{stage}/dice_with_bg", dice_score_with_bg)
+        self.log(f"{stage}/dice", dice_score, on_step=False, on_epoch=True)
+        self.log(
+            f"{stage}/dice_with_bg", dice_score_with_bg, on_step=False, on_epoch=True
+        )
 
     def training_step(self, batch, batch_idx):
 
