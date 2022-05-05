@@ -24,12 +24,22 @@ logger = logging.getLogger(__name__)
 
 
 # NOTE: mean ans std computed on train shards
-class DeadtreeDatasetConfig:
+class DeadtreeDatasetConfigCustom:
     """Dataset configuration"""
 
     # stats based on years 2017, 2018, 2019, 2020 and subtiles subsampled for 0.1
     mean = np.array([0.3661029729, 0.3875165941, 0.3501133538, 0.5797285859])
     std = np.array([0.2388708549, 0.2103625723, 0.2050272174, 0.2025812523])
+    tile_size = 256
+    fractions = [0.7, 0.2, 0.1]
+
+
+class DeadtreeDatasetConfig:
+    """Dataset configuration (imagenet pretrained encoder)"""
+
+    # NIR channel info same as red
+    mean = np.array([0.485, 0.456, 0.406, 0.485])
+    std = np.array([0.229, 0.224, 0.225, 0.229])
     tile_size = 256
     fractions = [0.7, 0.2, 0.1]
 
@@ -229,6 +239,7 @@ class DeadtreesDataModule(pl.LightningDataModule):
 
     def setup(
         self,
+        stage=None,  # required for 1.6
         split_fractions: List[float] = DeadtreeDatasetConfig.fractions,
         in_channels: Optional[int] = 4,  # change to 3 for rgb training instead of rgbn
         classes: Optional[int] = 3,  # change to 2 for single class (+bg) setup
