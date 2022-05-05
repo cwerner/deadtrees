@@ -6,6 +6,7 @@ network:
     decoder_channels: [256, 128, 64, 32, 16]
     encoder_depth: 5
     encoder_weights: "imagenet"
+    encoder_frozen: True
     losses: ["GDICE", "FOCAL", "BOUNDARY"]   # GWDICE, GDICE, DICE, FOCAL, BOUNDARY or BOUNDARY-RAMPED
 
 training:

@@ -89,9 +89,11 @@ class SemSegment(pl.LightningModule):  # type: ignore
             self.model.apply(initialize_weights)
         else:
             # Freeze encoder weights
-            self.model.encoder.eval()
-            for m in self.model.encoder.modules():
-                m.requires_grad_ = False
+            if clean_network_conf.encoder_frozen:
+                log.info("Training the encoder part of the model disabled")
+                self.model.encoder.eval()
+                for m in self.model.encoder.modules():
+                    m.requires_grad_ = False
             log.info(
                 f"Using existing encoder_weights: {clean_network_conf.encoder_weights}"
             )
