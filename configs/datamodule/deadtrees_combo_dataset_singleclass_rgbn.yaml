@@ -4,13 +4,13 @@ datamodule:
   pattern: "train-combo-*.tar"
   train_dataloader_conf:
     batch_size: 32
-    num_workers: 2
+    num_workers: 4
   val_dataloader_conf:
     batch_size: 32
-    num_workers: 2
+    num_workers: 4
   test_dataloader_conf:
     batch_size: 32
-    num_workers: 2
+    num_workers: 4
 
 model:
   network:
