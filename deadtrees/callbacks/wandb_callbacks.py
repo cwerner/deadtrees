@@ -71,3 +71,93 @@ class UploadCheckpointsToWandbAsArtifact(Callback):
                 ckpts.add_file(path)
 
         experiment.use_artifact(ckpts)
+
+
+# source: https://github.com/PyTorchLightning/pytorch-lightning/discussions/9910
+class LogConfusionMatrixToWandbVal(Callback):
+    def __init__(self):
+        self.preds = []
+        self.targets = []
+        self.ready = True
+
+    def on_sanity_check_start(self, trainer, pl_module) -> None:
+        self.ready = False
+
+    def on_sanity_check_end(self, trainer, pl_module):
+        self.ready = True
+
+        # def on_validation_batch_end(
+        #         self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+        # ):
+        #     if self.ready:
+        #         self.preds.append(outputs[OutputKeys.PREDICTION].detach().cpu().numpy())
+        #         self.targets.append(outputs[OutputKeys.TARGET].detach().cpu().numpy())
+
+        # #@rank_zero_only
+        # def on_validation_epoch_end(self, trainer, pl_module):
+        #     if not self.ready:
+        #         return
+
+        #     logger = get_wandb_logger(trainer)
+        #     experiment = logger.experiment
+
+        #     experiment.log(
+        #         {
+        #             "conf_mat": wandb.plot.confusion_matrix(
+        #                 probs=None,
+        #                 y_true=target,
+        #                 preds=prediction,
+        #                 class_names=["BG", "NEEDLELEAF", "BROADLEAF"],
+        #             )
+        #         }
+        #     )
+        # conf_mat_name = f'CM_epoch_{trainer.current_epoch}'
+        # logger = get_wandb_logger(trainer)
+        # experiment = logger.experiment
+
+        # preds = []
+        # for step_pred in self.preds:
+        #     preds.append(trainer.model.module.module.to_metrics_format(np.array(step_pred)))
+
+        # preds = np.concatenate(preds).flatten()
+        # targets = np.concatenate(np.array(self.targets)).flatten()
+
+        # num_classes = max(np.max(preds), np.max(targets)) + 1
+
+        # conf_mat = confusion_matrix(
+        #     target=torch.tensor(targets),
+        #     preds=torch.tensor(preds),
+        #     num_classes=num_classes
+        #     )
+
+        # # set figure size
+        # plt.figure(figsize=(14, 8))
+        # # set labels size
+        # sn.set(font_scale=1.4)
+        # # set font size
+        # fig = sn.heatmap(conf_mat, annot=True, annot_kws={"size": 8}, fmt="g")
+
+        # for i in range(conf_mat.shape[0]):
+        #     fig.add_patch(Rectangle((i, i), 1, 1, fill=False, edgecolor='yellow', lw=3))
+        # plt.xlabel('Predictions')
+        # plt.ylabel('Targets')
+        # plt.title(conf_mat_name)
+
+        # conf_mat_path = Path(os.getcwd()) / 'conf_mats' / 'val'
+        # conf_mat_path.mkdir(parents=True, exist_ok=True)
+        # conf_mat_file_path = conf_mat_path / (conf_mat_name + '.txt')
+        # df = pd.DataFrame(conf_mat.detach().cpu().numpy())
+
+        # # save as csv or tsv to disc
+        # df.to_csv(path_or_buf=conf_mat_file_path, sep='\t')
+        # # save tsv to wandb
+        # experiment.save(glob_str=str(conf_mat_file_path), base_path=os.getcwd())
+        # # names should be uniqe or else charts from different experiments in wandb will overlap
+        # experiment.log({f"confusion_matrix_val_img/ep_{trainer.current_epoch}": wandb.Image(plt)},
+        #                commit=False)
+        # # according to wandb docs this should also work but it crashes
+        # # experiment.log(f{"confusion_matrix/{experiment.name}": plt})
+        # # reset plot
+        # plt.clf()
+        self.preds.clear()
+        self.targets.clear()
