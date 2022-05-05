@@ -36,6 +36,8 @@ class PyTorchInference(Inference):
         model = SemSegment.load_from_checkpoint(self._model_file)
         model.eval()
 
+        self._channels = list(model.parameters())[0].shape[1]
+
         # TODO: this is ugly, rename or restructure
         self._model = model.model
 
@@ -49,6 +51,9 @@ class PyTorchInference(Inference):
             input_tensor.unsqueeze_(0)
 
         with torch.no_grad():
+            if (self._channels == 3) and (input_tensor.shape[1] == 4):
+                # rgb model but rgbn data
+                input_tensor = input_tensor[:, 0:3, :, :]
             out = self._model(input_tensor)
 
         return out.argmax(dim=1).squeeze()
