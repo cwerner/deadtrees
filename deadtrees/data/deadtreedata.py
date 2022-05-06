@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 # NOTE: mean ans std computed on train shards
-class DeadtreeDatasetConfigCustom:
+class DeadtreeDatasetConfig:
     """Dataset configuration"""
 
     # stats based on years 2017, 2018, 2019, 2020 and subtiles subsampled for 0.1
@@ -34,7 +34,7 @@ class DeadtreeDatasetConfigCustom:
     fractions = [0.7, 0.2, 0.1]
 
 
-class DeadtreeDatasetConfig:
+class DeadtreeDatasetConfigImagenet:
     """Dataset configuration (imagenet pretrained encoder)"""
 
     # NIR channel info same as red
