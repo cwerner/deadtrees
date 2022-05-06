@@ -26,3 +26,9 @@ rich_progress_bar:
 learning_rate_monitor:
     _target_: pytorch_lightning.callbacks.LearningRateMonitor
     logging_interval: "step"
+
+multistage:
+    _target_: deadtrees.callbacks.multistage.MultiStage
+    unfreeze_epoch: 20
+    lr_reduce_epoch: 40
+    lr_reduce_fraction: 3
