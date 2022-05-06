@@ -85,18 +85,9 @@ class SemSegment(pl.LightningModule):  # type: ignore
         self.model = Model(**clean_network_conf, classes=n_classes)
 
         if clean_network_conf.encoder_weights is None:
-            log.info("Initializing weights with Kaiming")
+            log.info("Initializing unset weights with Kaiming")
             self.model.apply(initialize_weights)
-        else:
-            # Freeze encoder weights
-            if clean_network_conf.encoder_frozen:
-                log.info("Training the encoder part of the model disabled")
-                self.model.encoder.eval()
-                for m in self.model.encoder.modules():
-                    m.requires_grad_ = False
-            log.info(
-                f"Using existing encoder_weights: {clean_network_conf.encoder_weights}"
-            )
+        self.encoder_weights = clean_network_conf.encoder_weights
 
         self.save_hyperparameters()
 
@@ -130,7 +121,6 @@ class SemSegment(pl.LightningModule):  # type: ignore
                     dist_mat = dist_mat[0:2, 0:2]
                 self.dice_loss = GeneralizedWassersteinDiceLoss(
                     dist_matrix=dist_mat,
-                    # weighting_mode='GDL'
                 )
             elif loss_component == "DICE":
                 # This the only required loss term
