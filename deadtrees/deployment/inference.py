@@ -59,6 +59,59 @@ class PyTorchInference(Inference):
         return out.argmax(dim=1).squeeze()
 
 
+class PyTorchEnsembleInference:
+    def __init__(self, *model_files: Path):
+        self._models = []
+        self._channels = None
+
+        if len(model_files) % 2 == 0:
+            raise ValueError(
+                "PyTorchEnsembleInference requires an uneven number of models"
+            )
+
+        for model_file in model_files:
+            if model_file.suffix != ".ckpt":
+                raise ValueError(
+                    f"ckpt file expected, but {model_file.suffix} received"
+                )
+
+            model = SemSegment.load_from_checkpoint(model_file)
+            model.eval()
+
+            channels = list(model.parameters())[0].shape[1]
+            if self._channels:
+                if channels != self._channels:
+                    raise ValueError(
+                        "models are not compatible since they were trained for different channel configs"
+                    )
+                self._channels = channels
+
+            # TODO: this is ugly, rename or restructure
+            self._models.append(model.model)
+
+    def run(self, input_tensor, device: str = "cpu"):
+        if not isinstance(input_tensor, torch.Tensor):
+            raise TypeError("no pytorch tensor provided")
+
+        if input_tensor.dim() == 3:
+            input_tensor.unsqueeze_(0)
+
+        if (self._channels == 3) and (input_tensor.shape[1] == 4):
+            # rgb model but rgbn data
+            input_tensor = input_tensor[:, 0:3, :, :]
+
+        outs = []
+        for model in self._models:
+            model.to(device)
+
+            with torch.no_grad():
+                out = model(input_tensor)
+
+            outs.append(out.argmax(dim=1).squeeze())
+
+        return torch.mode(torch.stack(outs, dim=1), axis=1)[0]
+
+
 class ONNXInference(Inference):
     def __init__(self, model_file) -> None:
         super().__init__(model_file)
