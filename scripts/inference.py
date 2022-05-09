@@ -1,12 +1,13 @@
 import argparse
 import math
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import rioxarray
 import torch
 from deadtrees.data.deadtreedata import val_transform
-from deadtrees.deployment.inference import PyTorchInference
+from deadtrees.deployment.inference import PyTorchEnsembleInference, PyTorchInference
 from deadtrees.deployment.tiler import Tiler
 from PIL import Image
 from tqdm import tqdm
@@ -20,8 +21,9 @@ def main():
         "-m",
         "--model",
         dest="model",
+        action="append",
         type=Path,
-        default=Path("checkpoints/bestmodel.ckpt"),
+        default=[],
         help="model artefact",
     )
 
@@ -51,6 +53,9 @@ def main():
 
     args = parser.parse_args()
 
+    if args.model is None:
+        args.model = [Path("checkpoints/bestmodel.ckpt")]
+
     bs = 64
 
     INFILE = args.infile
@@ -60,10 +65,12 @@ def main():
             return False if np.isin(t, [0, 255]).all() else True
 
     # inference = ONNXInference("checkpoints/bestmodel.onnx")
-    inference = PyTorchInference(args.model)
-
-    #
-    # model.to(device)
+    if len(args.model) == 1:
+        print("Default inference: single model")
+        inference = PyTorchInference(args.model)
+    else:
+        print(f"Ensemble inference: {len(args.model)} models")
+        inference = PyTorchEnsembleInference(*args.model)
 
     if args.all:
         INFILES = sorted(INFILE.glob("ortho*.tif"))
