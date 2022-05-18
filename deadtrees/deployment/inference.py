@@ -1,4 +1,5 @@
 import io
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Union
 
@@ -10,18 +11,20 @@ from matplotlib import cm
 from PIL import Image
 
 
-class Inference:
+class Inference(ABC):
     def __init__(self, model_file: Union[str, Path]) -> None:
         self._model_file = (
             model_file if isinstance(model_file, Path) else Path(model_file)
         )
+        super().__init__()
 
     @property
     def model_file(self) -> str:
         return self._model_file.name
 
-    def run(self, input_tensor):
-        return NotImplementedError
+    @abstractmethod
+    def run(self, input_tensor: torch.Tensor):
+        pass
 
 
 class PyTorchInference(Inference):
@@ -72,26 +75,27 @@ class PyTorchEnsembleInference:
         for model_file in model_files:
             if model_file.suffix != ".ckpt":
                 raise ValueError(
-                    f"ckpt file expected, but {model_file.suffix} received"
+                    f"Ckpt file expected, but {model_file.suffix} received"
                 )
 
             model = SemSegment.load_from_checkpoint(model_file)
             model.eval()
 
             channels = list(model.parameters())[0].shape[1]
-            if self._channels:
-                if channels != self._channels:
-                    raise ValueError(
-                        "models are not compatible since they were trained for different channel configs"
-                    )
+            if not self._channels:
                 self._channels = channels
+
+            if channels != self._channels:
+                raise ValueError(
+                    "Models are not compatible since they were trained for different channel configs"
+                )
 
             # TODO: this is ugly, rename or restructure
             self._models.append(model.model)
 
     def run(self, input_tensor, device: str = "cpu"):
         if not isinstance(input_tensor, torch.Tensor):
-            raise TypeError("no pytorch tensor provided")
+            raise TypeError("No PyTorch tensor provided")
 
         if input_tensor.dim() == 3:
             input_tensor.unsqueeze_(0)

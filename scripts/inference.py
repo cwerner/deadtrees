@@ -53,7 +53,7 @@ def main():
 
     args = parser.parse_args()
 
-    if args.model is None:
+    if len(args.model) == 0:
         args.model = [Path("checkpoints/bestmodel.ckpt")]
 
     bs = 64
@@ -67,7 +67,7 @@ def main():
     # inference = ONNXInference("checkpoints/bestmodel.onnx")
     if len(args.model) == 1:
         print("Default inference: single model")
-        inference = PyTorchInference(args.model)
+        inference = PyTorchInference(args.model[0])
     else:
         print(f"Ensemble inference: {len(args.model)} models")
         inference = PyTorchEnsembleInference(*args.model)
