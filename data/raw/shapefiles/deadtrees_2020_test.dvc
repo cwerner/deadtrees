@@ -1,0 +1,5 @@
+outs:
+- md5: 2a046c036168c2c799ec3e7ff2ac4bc4.dir
+  size: 747779
+  nfiles: 5
+  path: deadtrees_2020_test

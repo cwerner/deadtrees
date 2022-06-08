@@ -1,0 +1,5 @@
+outs:
+- md5: d0f0aad50514c79c8939acc9c29683bf.dir
+  size: 65551
+  nfiles: 5
+  path: deadtrees_2018_test
