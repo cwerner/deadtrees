@@ -52,10 +52,10 @@ stages:
         python scripts/createmasks.py 
         data/processed.images.${item} 
         data/processed.masks.${item} 
-        data/raw/shapefiles/deadtrees_${item}_test/deadtrees_${item}_test.shp
+        data/raw/shapefiles/deadtrees_${item}/deadtrees_${item}.shp
       deps:
       - data/processed.images.${item}
-      - data/raw/shapefiles/deadtrees_${item}_test
+      - data/raw/shapefiles/deadtrees_${item}
       outs:
       - data/processed.masks.${item}
 
@@ -81,7 +81,9 @@ stages:
   createdataset:
     foreach:
       - 2017
+      - 2018
       - 2019
+      - 2020
     do:
       cmd: >-
         python scripts/createdataset.py 
