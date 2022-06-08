@@ -33,6 +33,14 @@ class MultiStage(Callback):
                     f"Using pre-trained encoder weights: {pl_module.encoder_weights}"
                 )
 
+            # load autoencoder trained encoder weights
+            log.info(
+                f"PRE STAGE (epoch: {trainer.current_epoch}): Load pretrained autoencoder weights"
+            )
+            pl_module.model.encoder.load_state_dict(
+                torch.load("/data/repos/deadtrees/ae_encoder_epoch700.pth")
+            )
+
             # freeze encoder
             log.info(f"NEW STAGE (epoch: {trainer.current_epoch}): Freeze encoder")
             pl_module.model.encoder.eval()
