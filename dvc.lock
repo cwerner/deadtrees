@@ -416,3 +416,67 @@ stages:
       md5: cd93e1d1eb4f857a9dab0cdc9e61c476.dir
       size: 54193516092
       nfiles: 12918
+  createmasks@2020:
+    cmd: python scripts/createmasks.py  data/processed.images.2020  data/processed.masks.2020  data/raw/shapefiles/deadtrees_2020_test/deadtrees_2020_test.shp
+    deps:
+    - path: data/processed.images.2020
+      md5: 76d4daf0d9e69904a9370a0c74006d17.dir
+      size: 163333629599
+      nfiles: 30489
+    - path: data/raw/shapefiles/deadtrees_2020_test
+      md5: 2a046c036168c2c799ec3e7ff2ac4bc4.dir
+      size: 747779
+      nfiles: 5
+    outs:
+    - path: data/processed.masks.2020
+      md5: 64ab160672cf600aafc0292164150af2.dir
+      size: 247528718
+      nfiles: 59
+  createmasks@2018:
+    cmd: python scripts/createmasks.py  data/processed.images.2018  data/processed.masks.2018  data/raw/shapefiles/deadtrees_2018_test/deadtrees_2018_test.shp
+    deps:
+    - path: data/processed.images.2018
+      md5: cfa0adee6401f838f162a0510085becf.dir
+      size: 144861203951
+      nfiles: 30489
+    - path: data/raw/shapefiles/deadtrees_2018_test
+      md5: d0f0aad50514c79c8939acc9c29683bf.dir
+      size: 65551
+      nfiles: 5
+    outs:
+    - path: data/processed.masks.2018
+      md5: df9b55bc5bfd32cfedaafe633d4963ec.dir
+      size: 121666658
+      nfiles: 29
+  createforestmasks@2018:
+    cmd: python scripts/createmasks.py  data/processed.images.2018  data/processed.lus.2018  data/raw/shapefiles/forestmask/CORINE_forest.shp
+      --simple
+    deps:
+    - path: data/processed.images.2018
+      md5: cfa0adee6401f838f162a0510085becf.dir
+      size: 144861203951
+      nfiles: 30489
+    - path: data/raw/shapefiles/forestmask/CORINE_forest.shp
+      md5: 63947721b118c62a091559483db5d8f6
+      size: 43334576
+    outs:
+    - path: data/processed.lus.2018
+      md5: 692742b22e690cfbbef15101c24078c5.dir
+      size: 54193516092
+      nfiles: 12918
+  createforestmasks@2020:
+    cmd: python scripts/createmasks.py  data/processed.images.2020  data/processed.lus.2020  data/raw/shapefiles/forestmask/CORINE_forest.shp
+      --simple
+    deps:
+    - path: data/processed.images.2020
+      md5: 76d4daf0d9e69904a9370a0c74006d17.dir
+      size: 163333629599
+      nfiles: 30489
+    - path: data/raw/shapefiles/forestmask/CORINE_forest.shp
+      md5: 63947721b118c62a091559483db5d8f6
+      size: 43334576
+    outs:
+    - path: data/processed.lus.2020
+      md5: 10691c48713cdf6555842329a31cf9a2.dir
+      size: 54193516092
+      nfiles: 12918
