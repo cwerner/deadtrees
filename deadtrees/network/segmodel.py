@@ -97,6 +97,10 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         self.in_channels = self.hparams["network"]["in_channels"]
 
+        # label smoothing
+        # TODO make this a parameter (def: null)
+        self.smooth_factor = 0.01
+
         # losses
         self.dice_loss = None
         self.focal_loss = None
@@ -213,9 +217,12 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         logits = self.model(img)
         y = class2one_hot(mask, K=len(self.classes_int))
+        y_ls = class2one_hot(
+            mask, K=len(self.classes_int), smooth_factor=self.smooth_factor
+        )
         y_hat = logits.softmax(dim=1)
 
-        loss = self.calculate_loss(y_hat, y, "train", distmap=distmap)
+        loss = self.calculate_loss(y_hat, y_ls, "train", distmap=distmap)
 
         if torch.isnan(loss) or torch.isinf(loss):
             log.warn("Train loss is NaN! What is going on?")
@@ -234,9 +241,12 @@ class SemSegment(pl.LightningModule):  # type: ignore
 
         logits = self.model(img)
         y = class2one_hot(mask, K=len(self.classes_int))
+        y_ls = class2one_hot(
+            mask, K=len(self.classes_int), smooth_factor=self.smooth_factor
+        )
         y_hat = logits.softmax(dim=1)
 
-        loss = self.calculate_loss(y_hat, y, stage="val", distmap=distmap)
+        loss = self.calculate_loss(y_hat, y_ls, stage="val", distmap=distmap)
 
         self.log_metrics(y_hat, y, stage="val")
 

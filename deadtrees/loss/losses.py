@@ -121,7 +121,9 @@ def probs2class(probs: Tensor) -> Tensor:
     return res
 
 
-def class2one_hot(seg: Tensor, K: int) -> Tensor:
+def class2one_hot(
+    seg: Tensor, K: int, smooth_factor: Union[float, None] = None
+) -> Tensor:
     # Breaking change but otherwise can't deal with both 2d and 3d
     # if len(seg.shape) == 3:  # Only w, h, d, used by the dataloader
     #     return class2one_hot(seg.unsqueeze(dim=0), K)[0]
@@ -137,6 +139,11 @@ def class2one_hot(seg: Tensor, K: int) -> Tensor:
 
     assert res.shape == (b, K, *img_shape)
     assert one_hot(res)
+
+    if smooth_factor:
+        res = res.float()
+        res *= 1 - smooth_factor
+        res += smooth_factor / K
 
     return res
 
