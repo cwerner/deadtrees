@@ -1,1 +1,2 @@
+from .autoencoder import EfficientUnetPlusPlusAutoencoder
 from .model import EfficientUnetPlusPlus
