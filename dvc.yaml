@@ -108,6 +108,8 @@ stages:
       - data/dataset/train_${item}
       - data/dataset/stats_${item}.csv 
 
+
+  # we only merge 2017, 2019 for train, val, test - 2018, 2020 are test only
   mergedatasets:
     cmd: >-
       python scripts/mergedatasets.py data/dataset/train_2017 data/dataset/train_2019
