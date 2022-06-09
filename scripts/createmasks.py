@@ -165,6 +165,9 @@ def create_masks(
 
     # load domain shape files and use its crs for the entire script
     groundtruth = gpd.read_file(shpfile).explode()
+    if "Type" in list(groundtruth.columns.values):
+        groundtruth = groundtruth.rename(columns={"Type": "type"})
+
     crs = groundtruth.crs  # reference crs
 
     tiles_df = create_tile_grid_gdf(indir / "locations.csv", crs)
