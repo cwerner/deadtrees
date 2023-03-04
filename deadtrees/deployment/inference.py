@@ -1,7 +1,7 @@
 import io
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Union
+from typing import Iterable, Union
 
 import numpy as np
 import torch
@@ -12,15 +12,18 @@ from PIL import Image
 
 
 class Inference(ABC):
-    def __init__(self, model_file: Union[str, Path]) -> None:
-        self._model_file = (
-            model_file if isinstance(model_file, Path) else Path(model_file)
-        )
-        super().__init__()
+    # def __init__(self, model_file: Union[str, Path]) -> None:
+    #     self._model_file = (
+    #         model_file if isinstance(model_file, Path) else Path(model_file)
+    #     )
+    #     super().__init__()
 
     @property
     def model_file(self) -> str:
-        return self._model_file.name
+        if hasattr(self, "_models"):
+            return ",".join([m.name for m in self._models])
+        else:
+            return self._model.name
 
     @abstractmethod
     def run(self, input_tensor: torch.Tensor):
@@ -29,7 +32,11 @@ class Inference(ABC):
 
 class PyTorchInference(Inference):
     def __init__(self, model_file) -> None:
-        super().__init__(model_file)
+        # super().__init__(model_file)
+
+        self._model_file = (
+            model_file if isinstance(model_file, Path) else Path(model_file)
+        )
 
         if self._model_file.suffix != ".ckpt":
             raise ValueError(
@@ -43,6 +50,14 @@ class PyTorchInference(Inference):
 
         # TODO: this is ugly, rename or restructure
         self._model = model.model
+
+    @property
+    def channels(self) -> int:
+        return self._channels
+
+    @property
+    def classes(self) -> int:
+        return self._model.classes
 
     def run(self, input_tensor, device: str = "cpu", return_raw: bool = False):
         """run the model, return either the raw logits of all models or the mode"""
@@ -72,6 +87,11 @@ class PyTorchEnsembleInference:
         self._models = []
         self._channels = None
 
+        self._model_files = [
+            model_file if isinstance(model_file, Path) else Path(model_file)
+            for model_file in model_files
+        ]
+
         if len(model_files) % 2 == 0:
             raise ValueError(
                 "PyTorchEnsembleInference requires an uneven number of models"
@@ -98,6 +118,14 @@ class PyTorchEnsembleInference:
             # TODO: this is ugly, rename or restructure
             self._models.append(model.model)
 
+    @property
+    def channels(self) -> int:
+        return self._channels
+
+    @property
+    def classes(self) -> int:
+        return self._models[0].classes
+
     def run(self, input_tensor, device: str = "cpu", return_raw: bool = False):
         """run the model(s), return either the raw logits of all models or the mode"""
         if not isinstance(input_tensor, torch.Tensor):
@@ -113,19 +141,21 @@ class PyTorchEnsembleInference:
         outs = []
         for model in self._models:
             model.to(device)
-
             with torch.no_grad():
                 out = model(input_tensor)
 
             outs.append(out)
 
         if return_raw:
-            return outs
+            # dims: m, bs, c, h, w
+            return torch.stack(outs, dim=0)
         else:
+            # dims: bs, h, w
             model_results = [out.argmax(dim=1).squeeze() for out in outs]
-            return torch.mode(torch.stack(model_results, dim=1), axis=1)[0]
+            return torch.mode(torch.stack(model_results, dim=1), axis=1).values
 
 
+# deprecated, do not use
 class ONNXInference(Inference):
     def __init__(self, model_file) -> None:
         super().__init__(model_file)

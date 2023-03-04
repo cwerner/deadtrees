@@ -124,6 +124,7 @@ stages:
   # train: do this manually
 
   # inference
+  # overlap values possible: 32px or 128px
   inference:
     foreach:
       - 2017
@@ -133,14 +134,20 @@ stages:
     do:
       cmd: >-
         mkdir -p data/predicted.${item};
-        stdbuf -i0 -o0 -e0 python scripts/inference.py --all --nopreview -o data/predicted.${item} data/processed.images.${item};
+        stdbuf -i0 -o0 -e0 
+        python scripts/inference.py --all --overlap 32 -o data/predicted.${item} data/processed.images.${item} 
+        -m checkpoints/earnest-dew-216_epoch_235.ckpt 
+        -m checkpoints/fine-lake-207_epoch_279.ckpt
+        -m checkpoints/sage-glitter-214_epoch_106.ckpt;
         gdal_merge.py 
         -co "TILED=YES" -co "COMPRESS=LZW" -co "PREDICTOR=2" -co "NUM_THREADS=ALL_CPUS"
         -o data/predicted_mosaic_${item}.tif 
         data/predicted.${item}/ortho_ms_${item}_EPSG3044_*
       deps:
       - data/processed.images.${item}
-      - checkpoints/bestmodel.ckpt
+      - checkpoints/earnest-dew-216_epoch_235.ckpt
+      - checkpoints/fine-lake-207_epoch_279.ckpt
+      - checkpoints/sage-glitter-214_epoch_106.ckpt
       outs:
       - data/predicted.${item}
       - data/predicted_mosaic_${item}.tif
@@ -160,3 +167,23 @@ stages:
       - data/predicted.2020  
     outs:
       - data/predicted.stats.csv
+
+  computeaggregatemaps:
+    cmd: >-
+      mkdir data/maps;
+      python scripts/aggregate_results.py
+      data/processed.lus.2017  
+      data/processed.lus.2018  
+      data/processed.lus.2019  
+      data/processed.lus.2020  
+    deps:
+      - data/predicted.2017
+      - data/predicted.2018
+      - data/predicted.2019
+      - data/predicted.2020
+      - data/processed.lus.2017
+      - data/processed.lus.2018
+      - data/processed.lus.2019
+      - data/processed.lus.2020
+    outs:
+      - data/maps
