@@ -44,7 +44,9 @@ class PyTorchInference(Inference):
         # TODO: this is ugly, rename or restructure
         self._model = model.model
 
-    def run(self, input_tensor, device: str = "cpu"):
+    def run(self, input_tensor, device: str = "cpu", return_raw: bool = False):
+        """run the model, return either the raw logits of all models or the mode"""
+
         if not isinstance(input_tensor, torch.Tensor):
             raise TypeError("no pytorch tensor provided")
 
@@ -59,7 +61,10 @@ class PyTorchInference(Inference):
                 input_tensor = input_tensor[:, 0:3, :, :]
             out = self._model(input_tensor)
 
-        return out.argmax(dim=1).squeeze()
+        if return_raw:
+            return out
+        else:
+            return out.argmax(dim=1).squeeze()
 
 
 class PyTorchEnsembleInference:
@@ -93,7 +98,8 @@ class PyTorchEnsembleInference:
             # TODO: this is ugly, rename or restructure
             self._models.append(model.model)
 
-    def run(self, input_tensor, device: str = "cpu"):
+    def run(self, input_tensor, device: str = "cpu", return_raw: bool = False):
+        """run the model(s), return either the raw logits of all models or the mode"""
         if not isinstance(input_tensor, torch.Tensor):
             raise TypeError("No PyTorch tensor provided")
 
@@ -111,9 +117,13 @@ class PyTorchEnsembleInference:
             with torch.no_grad():
                 out = model(input_tensor)
 
-            outs.append(out.argmax(dim=1).squeeze())
+            outs.append(out)
 
-        return torch.mode(torch.stack(outs, dim=1), axis=1)[0]
+        if return_raw:
+            return outs
+        else:
+            model_results = [out.argmax(dim=1).squeeze() for out in outs]
+            return torch.mode(torch.stack(model_results, dim=1), axis=1)[0]
 
 
 class ONNXInference(Inference):
