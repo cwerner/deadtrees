@@ -43,8 +43,7 @@ setup(
         "torchvision>=0.12.0",
         "pytorch-lightning>=1.5",
         "rich",
-        # currently forked version of tiler so it's compatible with numpy<=1.19
-        "git+https://github.com/cwerner/tiler.git",
+        "git+https://github.com/cwerner/tiler.git#egg=tiler-0.5.7",
         "tqdm",
         "webdataset==0.1.62",
         "segmentation_models_pytorch>=0.2.1",
