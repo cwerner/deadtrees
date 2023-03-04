@@ -43,7 +43,7 @@ setup(
         "torchvision>=0.12.0",
         "pytorch-lightning>=1.5",
         "rich",
-        "git+https://github.com/cwerner/tiler.git#egg=tiler-0.5.7",
+        "tiler @ git+https://github.com/cwerner/tiler.git#egg=tiler-0.5.7",
         "tqdm",
         "webdataset==0.1.62",
         "segmentation_models_pytorch>=0.2.1",
